@@ -1,0 +1,14 @@
+{
+  "name": "stampy",
+  "version": "0.1.0",
+  "description": "Stamp out servers in a repeatable way using a collection of scripts",
+  "main": "index.js",
+  "repository": "https://github.com/joeferner/stampy.git",
+  "author": "Joe Ferner <joe@fernsroth.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@types/commander": "^2.9.1",
+    "@types/node": "^7.0.29",
+    "commander": "^2.9.0"
+  }
+}
