@@ -1,0 +1,21 @@
+
+defaults:
+  ssh:
+    username: root
+    password: root
+
+plugins:
+  require:
+    my-require-plugin: ./my-require-plugin.js
+  run-if:
+    my-run-if-plugin: ./my-run-if-plugin.js
+
+commands:
+  default:
+    scripts:
+    - ./start.sh
+
+roles:
+  all:
+    hosts:
+    - stampy-host1

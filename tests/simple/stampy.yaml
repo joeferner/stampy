@@ -1,0 +1,11 @@
+
+commands:
+  default:
+    description: Run a simple command chain
+    scripts:
+    - ./a.sh
+
+roles:
+  all:
+    hosts:
+    - localhost

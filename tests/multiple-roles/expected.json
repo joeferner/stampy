@@ -1,0 +1,106 @@
+{
+  "lines": [
+    {
+      "host": "stampy-host1",
+      "action": "CONNECT",
+      "script": null,
+      "data": "username: root"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "COPY",
+      "script": "./role1.sh",
+      "data": "role1.sh -> .stampy/working/role1.sh"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "COPY",
+      "script": "./start.sh",
+      "data": "start.sh -> .stampy/working/start.sh"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "RUN",
+      "script": "./role1.sh",
+      "data": null
+    },
+    {
+      "host": "stampy-host1",
+      "action": "STDOUT",
+      "script": "./role1.sh",
+      "data": "role1"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "STDOUT",
+      "script": "./role1.sh",
+      "data": "ROLES: role1 role3"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "RUN",
+      "script": "./start.sh",
+      "data": null
+    },
+    {
+      "host": "stampy-host2",
+      "action": "CONNECT",
+      "script": null,
+      "data": "username: root"
+    },
+    {
+      "host": "stampy-host2",
+      "action": "COPY",
+      "script": "./role2-dep.sh",
+      "data": "role2-dep.sh -> .stampy/working/role2-dep.sh"
+    },
+    {
+      "host": "stampy-host2",
+      "action": "COPY",
+      "script": "./role2.sh",
+      "data": "role2.sh -> .stampy/working/role2.sh"
+    },
+    {
+      "host": "stampy-host2",
+      "action": "COPY",
+      "script": "./start.sh",
+      "data": "start.sh -> .stampy/working/start.sh"
+    },
+    {
+      "host": "stampy-host2",
+      "action": "RUN",
+      "script": "./role2-dep.sh",
+      "data": null
+    },
+    {
+      "host": "stampy-host2",
+      "action": "STDOUT",
+      "script": "./role2-dep.sh",
+      "data": "role2 dep"
+    },
+    {
+      "host": "stampy-host2",
+      "action": "RUN",
+      "script": "./role2.sh",
+      "data": null
+    },
+    {
+      "host": "stampy-host2",
+      "action": "STDOUT",
+      "script": "./role2.sh",
+      "data": "role2"
+    },
+    {
+      "host": "stampy-host2",
+      "action": "STDOUT",
+      "script": "./role2.sh",
+      "data": "ROLES: role2"
+    },
+    {
+      "host": "stampy-host2",
+      "action": "RUN",
+      "script": "./start.sh",
+      "data": null
+    }
+  ]
+}

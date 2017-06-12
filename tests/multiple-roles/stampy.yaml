@@ -1,0 +1,19 @@
+
+defaults:
+  ssh:
+    username: root
+    password: root
+
+commands:
+  default:
+    scripts:
+    - ./start.sh
+
+hosts:
+  - host: stampy-host1
+    roles:
+      - role1
+      - role3
+  - host: stampy-host2
+    roles:
+      - role2

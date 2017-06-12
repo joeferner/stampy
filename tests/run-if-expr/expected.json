@@ -1,0 +1,28 @@
+{
+  "lines": [
+    {
+      "host": "localhost",
+      "action": "RUN",
+      "script": "./expr-true.sh",
+      "data": null
+    },
+    {
+      "host": "localhost",
+      "action": "STDOUT",
+      "script": "./expr-true.sh",
+      "data": "true"
+    },
+    {
+      "host": "localhost",
+      "action": "SKIP",
+      "script": "./expr-false.sh",
+      "data": null
+    },
+    {
+      "host": "localhost",
+      "action": "RUN",
+      "script": "./start.sh",
+      "data": null
+    }
+  ]
+}

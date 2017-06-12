@@ -1,0 +1,46 @@
+{
+  "lines": [
+    {
+      "host": "localhost",
+      "action": "RUN",
+      "script": "./c.sh",
+      "data": null
+    },
+    {
+      "host": "localhost",
+      "action": "STDOUT",
+      "script": "./c.sh",
+      "data": "c"
+    },
+    {
+      "host": "localhost",
+      "action": "RUN",
+      "script": "./b.sh",
+      "data": null
+    },
+    {
+      "host": "localhost",
+      "action": "STDOUT",
+      "script": "./b.sh",
+      "data": "b"
+    },
+    {
+      "host": "localhost",
+      "action": "RUN",
+      "script": "./a.sh",
+      "data": null
+    },
+    {
+      "host": "localhost",
+      "action": "STDOUT",
+      "script": "./a.sh",
+      "data": "a"
+    },
+    {
+      "host": "localhost",
+      "action": "STDERR",
+      "script": "./a.sh",
+      "data": "a stderr"
+    }
+  ]
+}

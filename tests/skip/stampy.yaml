@@ -1,0 +1,10 @@
+
+commands:
+  default:
+    scripts:
+    - ./skip.sh
+
+roles:
+  all:
+    hosts:
+    - localhost

@@ -1,0 +1,10 @@
+
+commands:
+  default:
+    scripts:
+    - ./start.sh
+
+roles:
+  all:
+    hosts:
+    - localhost

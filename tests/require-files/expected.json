@@ -1,0 +1,40 @@
+{
+  "lines": [
+    {
+      "host": "stampy-host1",
+      "action": "CONNECT",
+      "script": null,
+      "data": "username: root"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "COPY",
+      "script": "./start.sh",
+      "data": "start.sh -> .stampy/working/start.sh"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "COPY",
+      "script": "./start.sh",
+      "data": "./test.txt"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "COPY",
+      "script": "./start.sh",
+      "data": "test.txt -> .stampy/working/test.txt"
+    },
+    {
+      "host": "stampy-host1",
+      "action": "RUN",
+      "script": "./start.sh",
+      "data": null
+    },
+    {
+      "host": "stampy-host1",
+      "action": "STDOUT",
+      "script": "./start.sh",
+      "data": "Hello World"
+    }
+  ]
+}

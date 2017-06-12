@@ -1,0 +1,6 @@
+version: '2'
+services:
+  stampy-host1:
+    image: rastasheep/ubuntu-sshd
+  stampy-host2:
+    image: rastasheep/ubuntu-sshd

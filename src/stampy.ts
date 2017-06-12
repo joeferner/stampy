@@ -1,7 +1,10 @@
-import * as commander from "commander";
+import {run} from "./stampy-run";
 
-const args = commander
-    .version('0.1.0')
-    .parse(process.argv);
-
-console.log('args', args);
+run(process.argv)
+    .then(() => {
+        process.exit(0);
+    })
+    .catch(err => {
+        console.error('failed', err);
+        process.exit(1);
+    });

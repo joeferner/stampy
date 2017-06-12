@@ -1,0 +1,16 @@
+
+defaults:
+  ssh:
+    username: root
+    password: root
+    readyTimeout: 100
+
+commands:
+  default:
+    scripts:
+    - ./start.sh
+
+roles:
+  all:
+    hosts:
+    - some-bad-host-that-does-not-exist

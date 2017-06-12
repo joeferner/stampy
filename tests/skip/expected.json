@@ -1,0 +1,28 @@
+{
+  "lines": [
+    {
+      "host": "localhost",
+      "action": "SKIP",
+      "script": "./skip-run-if.sh",
+      "data": null
+    },
+    {
+      "host": "localhost",
+      "action": "RUN",
+      "script": "./skip-echo.sh",
+      "data": null
+    },
+    {
+      "host": "localhost",
+      "action": "SKIP",
+      "script": "./skip-echo.sh",
+      "data": null
+    },
+    {
+      "host": "localhost",
+      "action": "RUN",
+      "script": "./skip.sh",
+      "data": null
+    }
+  ]
+}
