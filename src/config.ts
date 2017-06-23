@@ -2,6 +2,7 @@ import * as yaml from "js-yaml";
 import * as fs from "fs-extra";
 import {Config, Host} from "../types";
 import * as path from "path";
+import * as _ from "lodash";
 
 const DEFAULT_CONFIG = './stampy.yaml';
 
@@ -13,7 +14,7 @@ export async function getConfig(config: string): Promise<string> {
     }
 }
 
-export async function load(file: string): Promise<Config> {
+export async function load(file: string, groups: string[]): Promise<Config> {
     const exists = await fs.pathExists(file);
     if (!exists) {
         throw new Error(`Could not find config "${path.resolve(file)}"`);
@@ -31,6 +32,12 @@ export async function load(file: string): Promise<Config> {
     }
     config.defaults = <any>config.defaults || {};
     config.defaults.ssh = config.defaults.ssh || {};
+    for (let groupName of groups) {
+        if (!config.groups[groupName]) {
+            throw new Error(`Could not find group with name "${groupName}"`);
+        }
+        _.merge(config, config.groups[groupName])
+    }
     return config;
 }
 

@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as chalk from "chalk";
-import {ExecutionContext, LogAction, Script} from "../types";
+import {BaseContext, ExecutionContext, LogAction, Script} from "../types";
 
-export function log(ctx: ExecutionContext, script: Script, action: LogAction, data?) {
+export function log(ctx: BaseContext, script: Script | string, action: LogAction, data?) {
     data = data ? data.toString().replace(/\n$/, '') : null;
     if (data) {
         const lines = data.split('\n');
@@ -14,13 +14,18 @@ export function log(ctx: ExecutionContext, script: Script, action: LogAction, da
         }
     }
 
-    const host = (ctx.sshOptions ? ctx.sshOptions.host : 'local');
+    const host = (<ExecutionContext>ctx).sshOptions ? (<ExecutionContext>ctx).sshOptions.host : 'local';
+    const scriptString = typeof script === 'string'
+        ? script
+        : script
+            ? script.path
+            : '';
 
     if (ctx.outputFormat === 'json') {
         writeOutput(ctx, JSON.stringify({
             host: host,
             action: action,
-            script: script ? script.path : null,
+            script: scriptString,
             data: data
         }));
         return;
@@ -46,13 +51,17 @@ export function log(ctx: ExecutionContext, script: Script, action: LogAction, da
         case 'STDERR':
             actionString = chalk.bold.red('ERR ');
             break;
+        case 'DONE':
+            actionString = chalk.bold.white('DONE');
+            break;
         default:
             actionString = chalk.red('UNKN');
             break;
     }
-    let message = `${ctx.logColorHostFn ? ctx.logColorHostFn(host) : host}: [${actionString}] ${script ? script.path : ''}`;
+    const hostString = (<ExecutionContext>ctx).logColorHostFn ? (<ExecutionContext>ctx).logColorHostFn(host) : host;
+    let message = `${hostString}: [${actionString}] ${scriptString}`;
     if (data) {
-        message += ': ';
+        message += scriptString ? ': ' : '';
         message += action === 'STDERR' ? chalk.bold.red(data) : data;
     }
     switch (action) {
@@ -65,7 +74,7 @@ export function log(ctx: ExecutionContext, script: Script, action: LogAction, da
     }
 }
 
-function writeOutput(ctx: ExecutionContext, message: string) {
+function writeOutput(ctx: BaseContext, message: string) {
     if (ctx.outputFileFD) {
         fs.writeSync(ctx.outputFileFD, message + "\n");
     } else {

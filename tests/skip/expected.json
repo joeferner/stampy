@@ -1,28 +1,20 @@
 {
   "lines": [
-    {
-      "host": "localhost",
-      "action": "SKIP",
-      "script": "./skip-run-if.sh",
-      "data": null
-    },
-    {
-      "host": "localhost",
-      "action": "RUN",
-      "script": "./skip-echo.sh",
-      "data": null
-    },
-    {
-      "host": "localhost",
-      "action": "SKIP",
-      "script": "./skip-echo.sh",
-      "data": null
-    },
-    {
-      "host": "localhost",
-      "action": "RUN",
-      "script": "./skip.sh",
-      "data": null
-    }
+    {"host":"localhost","action":"COPY","script":"./skip-run-if.sh","data":"skip-run-if.sh -> ~/.stampy/working/skip-run-if.sh"},
+    {"host":"localhost","action":"COPY","script":"./skip-echo.sh","data":"skip-echo.sh -> ~/.stampy/working/skip-echo.sh"},
+    {"host":"localhost","action":"COPY","script":"./skip.sh","data":"skip.sh -> ~/.stampy/working/skip.sh"},
+    {"host":"localhost","action":"SKIP","script":"./skip-run-if.sh","data":null},
+    {"host":"localhost","action":"RUN","script":"./skip-echo.sh","data":null},
+    {"host":"localhost","action":"SKIP","script":"./skip-echo.sh","data":null},
+    {"host":"localhost","action":"RUN","script":"./skip.sh","data":null},
+    {"host":"stampy-host1","action":"CONNECT","script":"","data":"username: root"},
+    {"host":"stampy-host1","action":"COPY","script":"./skip-run-if.sh","data":"skip-run-if.sh -> stampy-host1:~/.stampy/working/skip-run-if.sh"},
+    {"host":"stampy-host1","action":"COPY","script":"./skip-echo.sh","data":"skip-echo.sh -> stampy-host1:~/.stampy/working/skip-echo.sh"},
+    {"host":"stampy-host1","action":"COPY","script":"./skip.sh","data":"skip.sh -> stampy-host1:~/.stampy/working/skip.sh"},
+    {"host":"stampy-host1","action":"SKIP","script":"./skip-run-if.sh","data":null},
+    {"host":"stampy-host1","action":"RUN","script":"./skip-echo.sh","data":null},
+    {"host":"stampy-host1","action":"SKIP","script":"./skip-echo.sh","data":null},
+    {"host":"stampy-host1","action":"RUN","script":"./skip.sh","data":null},
+    {"host":"local","action":"DONE","script":"","data":null}
   ]
 }

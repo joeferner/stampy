@@ -9,6 +9,8 @@ import * as EventEmitter from "events";
 import * as rjson from "relaxed-json";
 import * as chalk from "chalk";
 import {log} from "./log";
+import * as os from "os";
+import * as fs from "fs-extra";
 
 const ScpClient = scp2.Client;
 const exec = child_process.exec;
@@ -28,8 +30,8 @@ export async function execute(ctx: BaseContext): Promise<void> {
         try {
             if (!ctx.local) {
                 ctx.client = await getSshClient(ctx);
-                await syncFiles(ctx);
             }
+            await syncFiles(ctx);
             await executeScripts(ctx);
             if (ctx.client) {
                 ctx.client.end();
@@ -38,6 +40,7 @@ export async function execute(ctx: BaseContext): Promise<void> {
             colorFnQueue.push(ctx.logColorHostFn);
         }
     }
+    log(ctx, null, 'DONE');
 }
 
 async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[]> {
@@ -77,6 +80,44 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
 }
 
 function syncFiles(ctx: ExecutionContext): Promise<void> {
+    if (ctx.local) {
+        return syncFilesLocal(ctx);
+    } else {
+        return syncFilesRemote(ctx);
+    }
+}
+
+async function syncFilesLocal(ctx: ExecutionContext): Promise<void> {
+    for (let script of ctx.scripts) {
+        await syncScript(ctx, script);
+    }
+    for (let include of ctx.includes) {
+        await copyFile(
+            null,
+            path.join(ctx.baseDir, include),
+            path.join(os.homedir(), '.stampy/working', include)
+        );
+    }
+
+    async function syncScript(ctx: ExecutionContext, script: Script): Promise<void> {
+        let localFile = path.resolve(script.sourceScriptRef.basePath, script.path);
+        script.remoteFile = path.join(os.homedir(), '.stampy/working', script.path);
+        await copyFile(script, localFile, script.remoteFile);
+        for (let file of script.files) {
+            const scriptPath = path.dirname(script.path);
+            localFile = path.resolve(script.sourceScriptRef.basePath, scriptPath, file);
+            const remoteFile = path.join(os.homedir(), '.stampy/working', scriptPath, file);
+            await copyFile(script, localFile, remoteFile);
+        }
+    }
+
+    async function copyFile(script: Script, localFile: string, remoteFile: string) {
+        log(ctx, script, 'COPY', `${path.relative(ctx.cwd, localFile)} -> ~${remoteFile.substr(os.homedir().length)}`);
+        return fs.copy(localFile, remoteFile);
+    }
+}
+
+function syncFilesRemote(ctx: ExecutionContext): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const client = new ScpClient(ctx.sshOptions);
         client.on('error', err => {
@@ -93,11 +134,19 @@ function syncFiles(ctx: ExecutionContext): Promise<void> {
 
         async function syncFilesToClient(ctx: ExecutionContext, client: scp2.Client, scripts: Script[]): Promise<void> {
             for (let script of scripts) {
-                await syncFile(ctx, client, script);
+                await syncScript(ctx, client, script);
+            }
+            for (let include of ctx.includes) {
+                await copyFile(
+                    client,
+                    null,
+                    path.join(ctx.baseDir, include),
+                    path.join('.stampy/working', include)
+                );
             }
         }
 
-        async function syncFile(ctx: ExecutionContext, client: scp2.Client, script: Script): Promise<void> {
+        async function syncScript(ctx: ExecutionContext, client: scp2.Client, script: Script): Promise<void> {
             let localFile = path.resolve(script.sourceScriptRef.basePath, script.path);
             script.remoteFile = path.join('.stampy/working', script.path);
             await copyFile(client, script, localFile, script.remoteFile);
@@ -111,7 +160,7 @@ function syncFiles(ctx: ExecutionContext): Promise<void> {
         }
 
         async function copyFile(client: scp2.Client, script: Script, localFile: string, remoteFile: string) {
-            log(ctx, script, 'COPY', `${path.relative(ctx.cwd, localFile)} -> ${remoteFile}`);
+            log(ctx, script, 'COPY', `${path.relative(ctx.cwd, localFile)} -> ${ctx.sshOptions.host}:~/${remoteFile}`);
             return new Promise<void>((resolve, reject) => {
                 return client.upload(localFile, remoteFile, err => {
                     if (err) {
@@ -155,6 +204,9 @@ async function shouldExecuteScript(ctx: ExecutionContext, script: Script): Promi
 }
 
 async function executeScriptCompleteFunctions(ctx: ExecutionContext, script: Script): Promise<void> {
+    if (ctx.dryRun) {
+        return;
+    }
     for (let line of script.stampyLines) {
         if (line.type === 'run-if') {
             const pluginName = line.args[0];
@@ -163,7 +215,7 @@ async function executeScriptCompleteFunctions(ctx: ExecutionContext, script: Scr
                 throw new Error(`Could not find '${line.type}' plugin '${pluginName}'`);
             }
             if (plugin.scriptComplete) {
-                await plugin.scriptComplete(ctx, script, line.args.slice(1));
+                await plugin.scriptComplete(ctx, script, line.args.slice(1), 0);
             }
         }
     }
@@ -191,15 +243,30 @@ function executeCommand(ctx: ExecutionContext, script: Script, command: string):
     }
 }
 
+function getFullCommand(ctx: ExecutionContext, script: Script, command: string) {
+    const scriptPath = ctx.local
+        ? path.join(os.homedir(), '.stampy/working')
+        : '.stampy/working/';
+    let result = '';
+    result += `cd "${scriptPath}"\n`;
+    for (let include of ctx.includes) {
+        result += `. ${include}\n`;
+    }
+    result += `export STAMPY_GROUPS="${ctx.groups.join(' ')}"\n`;
+    result += `export STAMPY_ROLES="${ctx.roles.join(' ')}"\n`;
+    result += `function stampy_skip { echo 'STAMPY: {"action": "SKIP"}'; }\n`;
+    result += `export -f stampy_skip\n`;
+    result += `${command}`;
+    if (ctx.config.sudo) {
+        result = `sudo -s -- << EOF\n${result}\nEOF`;
+    }
+    return result;
+}
+
 function executeCommandLocal(ctx: ExecutionContext, script: Script, command: string): EventEmitter {
-    const options = {
-        cwd: script.sourceScriptRef.basePath, // TODO copy all scripts to a single directory
-        env: {
-            ROLES: ctx.roles.join(' ')
-        }
-    };
+    const options = {};
     const result = new EventEmitter();
-    const cp = exec(command, options);
+    const cp = exec(getFullCommand(ctx, script, command), options);
     cp.stdout.on('data', data => {
         result.emit('stdout', data);
     });
@@ -214,9 +281,7 @@ function executeCommandLocal(ctx: ExecutionContext, script: Script, command: str
 
 function executeCommandRemote(ctx: ExecutionContext, script: Script, command: string): EventEmitter {
     const result = new EventEmitter();
-    const remotePath = path.dirname(script.remoteFile);
-    command = `cd "${remotePath}" && ROLES="${ctx.roles.join(' ')}" ${command}`;
-    ctx.client.exec(command, (err, stream) => {
+    ctx.client.exec(getFullCommand(ctx, script, command), (err, stream) => {
         if (err) {
             return result.emit('error', err);
         }
@@ -236,6 +301,9 @@ function executeCommandRemote(ctx: ExecutionContext, script: Script, command: st
 function executeScript(ctx: ExecutionContext, script: Script): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         log(ctx, script, 'RUN');
+        if (ctx.dryRun) {
+            return resolve();
+        }
         const ee = executeCommand(ctx, script, script.path);
         ee.on('stdout', data => {
             let m;
@@ -259,7 +327,7 @@ function executeScript(ctx: ExecutionContext, script: Script): Promise<void> {
             if (code === 0) {
                 resolve();
             } else {
-                reject(new Error(`process exited with code ${code}`));
+                reject(new Error(`process "${script.path}" exited with code ${code}`));
             }
         });
     });

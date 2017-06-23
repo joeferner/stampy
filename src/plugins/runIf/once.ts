@@ -8,18 +8,21 @@ export class OnceRunIfPlugin extends ExprRunIfPlugin {
         return super.shouldExecute(ctx, script, [`! -f "${remoteTestFile}"`]);
     }
 
-    async scriptComplete?(ctx: ExecutionContext, script: Script, code: number): Promise<void> {
+    async scriptComplete?(ctx: ExecutionContext, script: Script, args: string[], code: number): Promise<void> {
+        if (code !== 0) {
+            return Promise.resolve();
+        }
         const remoteTestFile = this.getRemoteTestFile(script);
-        return new Promise((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
             ctx.exec(script, `touch "${remoteTestFile}"`)
                 .on('close', code => {
                     if (code === 0) {
-                        resolve(true);
+                        return resolve();
                     }
-                    reject(new Error(`Could not touch "${remoteTestFile}"`));
+                    return reject(new Error(`Could not touch "${remoteTestFile}"`));
                 })
                 .on('error', err => {
-                    reject(err);
+                    return reject(err);
                 });
         });
     }

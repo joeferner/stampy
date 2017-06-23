@@ -12,6 +12,7 @@ export interface Host {
 }
 
 export interface Config {
+    sudo?: boolean;
     defaults: {
         ssh: ssh2.ConnectConfig;
     };
@@ -22,6 +23,8 @@ export interface Config {
     commands: { [command: string]: Command };
     hosts?: { host: string, roles: string[] }[];
     roles: { [role: string]: Host };
+    groups?: { [name: string]: Config };
+    includes: string[];
 }
 
 export interface CommandLineArguments {
@@ -58,9 +61,10 @@ export interface Script {
 
 export type OutputFormat = 'normal' | 'json';
 
-export type LogAction = 'RUN' | 'STDERR' | 'STDOUT' | 'SKIP' | 'COPY' | 'CONNECT';
+export type LogAction = 'RUN' | 'STDERR' | 'STDOUT' | 'SKIP' | 'COPY' | 'CONNECT' | 'DONE';
 
 export interface BaseContext {
+    baseDir: string;
     cwd: string;
     configFile: string;
     commandLineArgs: CommandLineArguments;
@@ -68,8 +72,12 @@ export interface BaseContext {
     plugins: Plugins;
     scripts: Script[];
     rolesToRun?: string[];
-    outputFormat: OutputFormat,
-    outputFileFD?: number,
+    groups: string[];
+    outputFormat: OutputFormat;
+    outputFileFD?: number;
+    dryRun: boolean;
+    includes: string[];
+    pluginData: { [name: string]: any };
 }
 
 export interface RequirePluginContext extends BaseContext {
@@ -92,7 +100,7 @@ export interface Plugin {
     /**
      * Called after the script completed execution
      */
-    scriptComplete?(ctx: ExecutionContext, script: Script, code: number): Promise<void>;
+    scriptComplete?(ctx: ExecutionContext, script: Script, args: string[], code: number): Promise<void>;
 }
 
 export interface ExpandRequiresResults {

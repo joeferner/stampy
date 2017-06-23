@@ -51,7 +51,7 @@ for (let f of dir) {
                                 return JSON.parse(line);
                             });
                         console.log(`results for ${f}`);
-                        console.log(results.map(line => JSON.stringify(line)).join('\n'));
+                        console.log(results.map(line => JSON.stringify(line)).join(',\n'));
                         test.equals(results.length, expected.lines.length, `expected lines (${expected.lines.length}) did not match found lines (${results.length})`);
                         for (let i = 0; i < results.length; i++) {
                             const foundLine = results[i];

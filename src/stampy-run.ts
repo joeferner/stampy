@@ -3,6 +3,8 @@ import * as Config from "./config";
 import {getConfig} from "./config";
 import {BaseContext, Plugin, Plugins, RequirePluginContext, Script, ScriptRef} from "../types";
 import {ScriptsRequirePlugin} from "./plugins/require/scripts";
+import {LocalScriptsRequirePlugin} from "./plugins/require/local-scripts";
+import {EjsRequirePlugin} from "./plugins/require/ejs";
 import * as _ from "lodash";
 import * as fs from "fs-extra";
 import * as path from "path";
@@ -17,12 +19,14 @@ import * as glob from "glob";
 import {OnceRunIfPlugin} from "./plugins/runIf/once";
 
 export async function run(argv: string[]): Promise<void> {
-    const args = commander
+    const args: any = commander
         .version('0.1.0')
         .usage('[options] <file|commands ...>')
         .option('-c, --config <file>', 'Configuration file')
         .option('-r, --role <role>', 'Role to run', collect, null)
         .option('-o, --output <file>', 'Output file')
+        .option('-g, --group <name>', 'Groups to run', collect, [])
+        .option('--dry-run', 'Perform a dry run, this will not run any of the scripts')
         .option('--outputFormat [normal|json]', 'Specify how the output should look', 'normal')
         .parse(argv);
 
@@ -32,18 +36,24 @@ export async function run(argv: string[]): Promise<void> {
     }
 
     const config = await getConfig(args.config);
+    const configDir = path.resolve(path.dirname(config));
     const ctx: any = {
-        cwd: path.resolve(path.dirname(config)),
+        baseDir: configDir,
+        cwd: configDir,
         configFile: config,
         commandLineArgs: args,
         rolesToRun: args.role,
+        groups: args.group,
         outputFormat: args.outputFormat,
         outputFileFD: outputFileFD,
-        log: null
+        log: null,
+        dryRun: args.dryRun,
+        pluginData: {}
     };
 
     ctx.log = log.bind(null, ctx, null);
-    ctx.config = await Config.load(ctx.configFile);
+    ctx.config = await Config.load(ctx.configFile, ctx.groups);
+    await addIncludesDirectory(ctx);
     await validate(ctx);
     const initialScripts = await findInitialScripts(ctx);
     ctx.plugins = await loadPlugins(ctx);
@@ -54,6 +64,32 @@ export async function run(argv: string[]): Promise<void> {
     if (ctx.outputFileFD) {
         fs.closeSync(ctx.outputFileFD);
     }
+}
+
+async function addIncludesDirectory(ctx: BaseContext): Promise<void> {
+    const includesPath = path.join(ctx.baseDir, 'includes');
+    let includes = ctx.config.includes;
+    if (!includes) {
+        if (await fs.pathExists(includesPath)) {
+            includes = [path.join(includesPath, '/**')];
+        } else {
+            includes = [];
+        }
+    }
+    ctx.includes = _.flatten(await Promise.all<string[]>(includes.map(i => {
+        const globOptions = {
+            cwd: ctx.baseDir,
+            nodir: true
+        };
+        return new Promise((resolve, reject) => {
+            glob(i, globOptions, (err, files) => {
+                if (err) {
+                    return reject(err);
+                }
+                resolve(files.map(f => path.relative(ctx.baseDir, f)));
+            });
+        });
+    })));
 }
 
 async function openOutputFile(fileName: string): Promise<number> {
@@ -132,7 +168,16 @@ async function findInitialScripts(ctx: BaseContext): Promise<ScriptRef[]> {
             }));
         })
     );
-    return _.flatten(scripts);
+
+    const includes = (ctx.config.includes || []).map(include => {
+        return {
+            basePath: ctx.cwd,
+            requirePluginName: 'file',
+            args: [include]
+        };
+    });
+
+    return _.flatten(scripts).concat(includes);
 }
 
 async function loadPlugins(ctx: RequirePluginContext): Promise<Plugins> {
@@ -140,10 +185,14 @@ async function loadPlugins(ctx: RequirePluginContext): Promise<Plugins> {
         require: {
             scripts: new ScriptsRequirePlugin(),
             script: new ScriptsRequirePlugin(),
+            'local-script': new LocalScriptsRequirePlugin(),
+            'local-scripts': new LocalScriptsRequirePlugin(),
             files: new FilesRequirePlugin(),
-            file: new FilesRequirePlugin()
+            file: new FilesRequirePlugin(),
+            ejs: new EjsRequirePlugin()
         },
         'run-if': {
+            'has-role': new HasRolesRunIfPlugin(),
             'has-roles': new HasRolesRunIfPlugin(),
             expr: new ExprRunIfPlugin(),
             once: new OnceRunIfPlugin()

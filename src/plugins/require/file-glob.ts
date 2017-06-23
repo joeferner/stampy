@@ -1,6 +1,7 @@
 import * as glob from "glob";
 import {ExpandRequiresResults, RequirePlugin, RequirePluginContext} from "../../../types";
 import * as _ from "lodash";
+import * as path from "path";
 
 export abstract class FileGlobRequirePlugin implements RequirePlugin {
     abstract expandRequires(ctx: RequirePluginContext, args: string[]): Promise<ExpandRequiresResults>;
@@ -11,7 +12,7 @@ export abstract class FileGlobRequirePlugin implements RequirePlugin {
             nodir: true
         };
 
-        return <Promise<string[]>>Promise.all(
+        return Promise.all<string[]>(
             args.map(arg => {
                 return new Promise((resolve, reject) => {
                     glob(arg, globOptions, (err, files) => {
@@ -22,13 +23,13 @@ export abstract class FileGlobRequirePlugin implements RequirePlugin {
                     });
                 })
             })
-        ).then(files => {
+        ).then((files: string[][]) => {
             files.forEach((file: string[], i) => {
                 if (file.length === 0) {
-                    throw new Error(`Could not find scripts with pattern ${args[i]} (cwd: ${globOptions.cwd})`);
+                    throw new Error(`Could not find files with pattern ${args[i]} (cwd: ${globOptions.cwd})`);
                 }
             });
-            return _.flatten(files);
+            return _.flatten(files).map(f => path.join(ctx.cwd, f));
         });
     }
 }

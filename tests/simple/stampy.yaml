@@ -1,4 +1,9 @@
 
+defaults:
+  ssh:
+    username: root
+    password: root
+
 commands:
   default:
     description: Run a simple command chain
@@ -9,3 +14,4 @@ roles:
   all:
     hosts:
     - localhost
+    - stampy-host1

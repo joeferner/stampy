@@ -1,4 +1,9 @@
 
+defaults:
+  ssh:
+    username: root
+    password: root
+
 commands:
   default:
     scripts:
@@ -8,3 +13,4 @@ roles:
   all:
     hosts:
     - localhost
+    - stampy-host1

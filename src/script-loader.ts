@@ -2,17 +2,20 @@ import {RequirePluginContext, Script, ScriptRef, StampyLine} from "../types";
 import * as _ from "lodash";
 import * as fs from "fs-extra";
 import * as path from "path";
+import * as mapSeries from "promise-map-series";
 
 export type LoadedScripts = { [fullPath: string]: Script };
 
-export async function loadScripts(ctx: RequirePluginContext, scriptRefs: ScriptRef[], loadedScripts?: LoadedScripts): Promise<Script[]> {
+export function loadScripts(ctx: RequirePluginContext, scriptRefs: ScriptRef[], loadedScripts?: LoadedScripts): Promise<Script[]> {
     loadedScripts = loadedScripts || {};
-    const scripts = await Promise.all(
-        scriptRefs.map(scriptRef => {
+    return mapSeries(
+        scriptRefs,
+        scriptRef => {
             return expandScripts(ctx, scriptRef, loadedScripts);
-        })
-    );
-    return _.flatten(scripts);
+        }
+    ).then(scripts => {
+        return _.flatten(scripts);
+    });
 }
 
 async function expandScripts(ctx: RequirePluginContext, scriptRef: ScriptRef, loadedScripts: LoadedScripts): Promise<Script[]> {
@@ -22,13 +25,17 @@ async function expandScripts(ctx: RequirePluginContext, scriptRef: ScriptRef, lo
     }
     const results = await requirePlugin.expandRequires(ctx, scriptRef.args);
     scriptRef.scripts = results.scripts;
-    scriptRef.files = results.files;
+    scriptRef.files = (results.files || []).map(f => path.relative(scriptRef.basePath, f));
     return loadScriptFiles(ctx, scriptRef, results.scripts, loadedScripts);
 }
 
-async function loadScriptFiles(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, files: string[], loadedScripts: LoadedScripts): Promise<Script[]> {
-    const scripts = await Promise.all((files || []).map(f => loadScriptFile(ctx, sourceScriptRef, f, loadedScripts)));
-    return _.compact(_.flatten(scripts));
+function loadScriptFiles(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, files: string[], loadedScripts: LoadedScripts): Promise<Script[]> {
+    return mapSeries(
+        files || [],
+        f => loadScriptFile(ctx, sourceScriptRef, f, loadedScripts)
+    ).then(scripts => {
+        return _.compact(_.flatten(scripts));
+    });
 }
 
 async function loadScriptFile(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, file: string, loadedScripts: LoadedScripts): Promise<Script> {
@@ -49,13 +56,17 @@ async function loadScriptFile(ctx: RequirePluginContext, sourceScriptRef: Script
         });
     const script: Script = {
         sourceScriptRef: sourceScriptRef,
-        path: file,
+        path: './' + path.relative(sourceScriptRef.basePath, file),
         requires: [],
         stampyLines: stampyLines,
         files: []
     };
     loadedScripts[fullPath] = script;
-    script.requires = await loadScripts(ctx, requires, loadedScripts);
+    const subCtx = {
+        ...ctx,
+        cwd: path.dirname(fullPath)
+    };
+    script.requires = await loadScripts(subCtx, requires, loadedScripts);
     for (let require of requires) {
         if (require.files) {
             script.files = script.files.concat(require.files);
