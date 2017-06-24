@@ -1,28 +1,38 @@
-import {ExpandRequiresResults, RequirePluginContext, RequirePlugin} from "../../../types";
+import {ExecutionContext, ExpandRequiresResults, RequirePlugin, RequirePluginContext, Script} from "../../../types";
 import * as ejs from "ejs";
-import * as fs from 'fs-extra';
+import * as fs from "fs-extra";
 import * as path from "path";
 import * as NestedError from "nested-error-stacks";
 
 export class EjsRequirePlugin implements RequirePlugin {
-    async expandRequires(ctx: RequirePluginContext, args: string[]): Promise<ExpandRequiresResults> {
+    public async expandRequires(ctx: RequirePluginContext, args: string[]): Promise<ExpandRequiresResults> {
         if (args.length !== 1 && args.length !== 2) {
             throw new Error(`ejs requires 1 or 2 arguments found ${args.length}`);
         }
-        const src = args[0];
-        const dest = args.length === 1 ? EjsRequirePlugin.removeEjsExtension(src) : args[1];
-        const srcContent = await fs.readFile(path.join(ctx.cwd, src), 'utf8');
-        const template = EjsRequirePlugin.compileTemplate(srcContent, src);
+        const src = EjsRequirePlugin.getSourceFileName(ctx, args);
+        const dest = EjsRequirePlugin.getDestFileName(args, src, ctx);
+        const template = await EjsRequirePlugin.compileTemplate(ctx, src);
         const results = EjsRequirePlugin.executeTemplate(ctx, template, src);
-        await fs.writeFile(path.join(ctx.cwd, dest), results, 'utf8');
+        await fs.writeFile(dest, results, 'utf8');
         return {
             files: [dest]
         };
     }
 
-    private static compileTemplate(srcContent: string, src: string): ejs.TemplateFunction {
+    private static getDestFileName(args: string[], src: string, ctx: RequirePluginContext) {
+        return args.length === 1 ? EjsRequirePlugin.removeEjsExtension(src) : path.join(ctx.cwd, args[1]);
+    }
+
+    private static getSourceFileName(ctx: RequirePluginContext, args: string[]) {
+        return path.join(ctx.cwd, args[0]);
+    }
+
+    private static async compileTemplate(ctx: RequirePluginContext, src: string): Promise<ejs.TemplateFunction> {
         try {
-            return ejs.compile(srcContent);
+            const srcContent = await fs.readFile(src, 'utf8');
+            return ejs.compile(srcContent, {
+                context: ctx
+            });
         } catch (err) {
             throw new NestedError(`Could not compile ejs ${src}`, err);
         }

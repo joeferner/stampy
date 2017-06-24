@@ -30,6 +30,7 @@ export async function load(file: string, groups: string[]): Promise<Config> {
     if (config.hosts) {
         config.roles = transformHostsToRoles(config.hosts);
     }
+    config.data = config.data || {};
     config.defaults = <any>config.defaults || {};
     config.defaults.ssh = config.defaults.ssh || {};
     for (let groupName of groups) {

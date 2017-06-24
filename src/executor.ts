@@ -208,15 +208,13 @@ async function executeScriptCompleteFunctions(ctx: ExecutionContext, script: Scr
         return;
     }
     for (let line of script.stampyLines) {
-        if (line.type === 'run-if') {
-            const pluginName = line.args[0];
-            const plugin = ctx.plugins[line.type][pluginName];
-            if (!plugin) {
-                throw new Error(`Could not find '${line.type}' plugin '${pluginName}'`);
-            }
-            if (plugin.scriptComplete) {
-                await plugin.scriptComplete(ctx, script, line.args.slice(1), 0);
-            }
+        const pluginName = line.args[0];
+        const plugin = ctx.plugins[line.type][pluginName];
+        if (!plugin) {
+            throw new Error(`Could not find '${line.type}' plugin '${pluginName}'`);
+        }
+        if (plugin.scriptComplete) {
+            await plugin.scriptComplete(ctx, script, line.args.slice(1), 0);
         }
     }
 }

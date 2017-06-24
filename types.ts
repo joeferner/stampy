@@ -25,6 +25,7 @@ export interface Config {
     roles: { [role: string]: Host };
     groups?: { [name: string]: Config };
     includes: string[];
+    data: { [name: string]: any };
 }
 
 export interface CommandLineArguments {
