@@ -1,4 +1,4 @@
-import {RequirePluginContext, Script, ScriptRef, StampyLine} from "../types";
+import {FileRef, PLUGIN_TYPES, RequirePluginContext, Script, ScriptRef, StampyLine} from "../types";
 import * as _ from "lodash";
 import * as fs from "fs-extra";
 import * as path from "path";
@@ -24,12 +24,12 @@ async function expandScripts(ctx: RequirePluginContext, scriptRef: ScriptRef, lo
         throw new Error(`Could not find require plugin "${scriptRef.requirePluginName}"`);
     }
     const results = await requirePlugin.expandRequires(ctx, scriptRef.args);
-    scriptRef.scripts = results.scripts;
-    scriptRef.files = (results.files || []).map(f => path.relative(scriptRef.basePath, f));
+    scriptRef.scripts = results.scripts || [];
+    scriptRef.files = results.files || [];
     return loadScriptFiles(ctx, scriptRef, results.scripts, loadedScripts);
 }
 
-function loadScriptFiles(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, files: string[], loadedScripts: LoadedScripts): Promise<Script[]> {
+function loadScriptFiles(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, files: FileRef[], loadedScripts: LoadedScripts): Promise<Script[]> {
     return mapSeries(
         files || [],
         f => loadScriptFile(ctx, sourceScriptRef, f, loadedScripts)
@@ -38,12 +38,11 @@ function loadScriptFiles(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, 
     });
 }
 
-async function loadScriptFile(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, file: string, loadedScripts: LoadedScripts): Promise<Script> {
-    const fullPath = path.resolve(sourceScriptRef.basePath, file);
-    if (loadedScripts[fullPath]) {
-        return loadedScripts[fullPath];
+async function loadScriptFile(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, file: FileRef, loadedScripts: LoadedScripts): Promise<Script> {
+    if (loadedScripts[file.packagePath]) {
+        return loadedScripts[file.packagePath];
     }
-    const fileContents = await fs.readFile(fullPath, 'utf8');
+    const fileContents = await fs.readFile(file.fullPath, 'utf8');
     const stampyLines = getStampyLines(fileContents);
     const requires: ScriptRef[] = stampyLines
         .filter(sl => sl.type === 'require')
@@ -56,15 +55,15 @@ async function loadScriptFile(ctx: RequirePluginContext, sourceScriptRef: Script
         });
     const script: Script = {
         sourceScriptRef: sourceScriptRef,
-        path: './' + path.relative(sourceScriptRef.basePath, file),
+        path: file,
         requires: [],
         stampyLines: stampyLines,
         files: []
     };
-    loadedScripts[fullPath] = script;
+    loadedScripts[file.packagePath] = script;
     const subCtx = {
         ...ctx,
-        cwd: path.dirname(fullPath)
+        cwd: path.dirname(file.fullPath)
     };
     script.requires = await loadScripts(subCtx, requires, loadedScripts);
     for (let require of requires) {
@@ -84,7 +83,7 @@ function getStampyLines(fileContents: string): StampyLine[] {
     const lines = fileContents.split('\n');
     return lines
         .map(line => {
-            const m = line.match(/# (require|run-if) (.*)/);
+            const m = line.match(`^# (${PLUGIN_TYPES.join('|')}) (.*)`);
             if (!m) {
                 return null;
             }

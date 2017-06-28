@@ -1,9 +1,9 @@
-import {ExpandRequiresResults, RequirePluginContext} from "../../../types";
-import {FileGlobRequirePlugin} from "./file-glob";
+import {ExpandRequiresResults, RequirePlugin, RequirePluginContext} from "../../../types";
+import {globFiles} from "../../utils/glob";
 
-export class FilesRequirePlugin extends FileGlobRequirePlugin {
+export class FilesRequirePlugin implements RequirePlugin {
     async expandRequires(ctx: RequirePluginContext, args: string[]): Promise<ExpandRequiresResults> {
-        const files = await super.globFiles(ctx, args);
+        const files = await globFiles(ctx, args);
         return {files: files};
     }
 }

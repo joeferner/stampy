@@ -1,10 +1,10 @@
 import * as commander from "commander";
 import * as Config from "./config";
 import {getConfig} from "./config";
-import {BaseContext, Plugin, Plugins, RequirePluginContext, Script, ScriptRef} from "../types";
+import {BaseContext, Plugin, PLUGIN_TYPES, Plugins, RequirePluginContext, Script, ScriptRef} from "../types";
 import {ScriptsRequirePlugin} from "./plugins/require/scripts";
-import {LocalScriptsRequirePlugin} from "./plugins/require/local-scripts";
-import {EjsRequirePlugin} from "./plugins/require/ejs";
+import {LocalScriptsRunPlugin} from "./plugins/run/local-scripts";
+import {EjsRunPlugin} from "./plugins/run/ejs";
 import * as _ from "lodash";
 import * as fs from "fs-extra";
 import * as path from "path";
@@ -120,7 +120,7 @@ function validateScriptCircularDependencies(scriptPath: Script[]) {
     for (let child of scriptPath[scriptPath.length - 1].requires) {
         for (let s of scriptPath) {
             if (s === child) {
-                throw new Error(`Circular dependency detected from script "${s.path}"`);
+                throw new Error(`Circular dependency detected from script "${s.path.packagePath}"`);
             }
         }
         validateScriptCircularDependencies(scriptPath.concat([child]));
@@ -185,17 +185,19 @@ async function loadPlugins(ctx: RequirePluginContext): Promise<Plugins> {
         require: {
             scripts: new ScriptsRequirePlugin(),
             script: new ScriptsRequirePlugin(),
-            'local-script': new LocalScriptsRequirePlugin(),
-            'local-scripts': new LocalScriptsRequirePlugin(),
             files: new FilesRequirePlugin(),
-            file: new FilesRequirePlugin(),
-            ejs: new EjsRequirePlugin()
+            file: new FilesRequirePlugin()
         },
         'run-if': {
             'has-role': new HasRolesRunIfPlugin(),
             'has-roles': new HasRolesRunIfPlugin(),
             expr: new ExprRunIfPlugin(),
             once: new OnceRunIfPlugin()
+        },
+        run: {
+            'local-script': new LocalScriptsRunPlugin(),
+            'local-scripts': new LocalScriptsRunPlugin(),
+            ejs: new EjsRunPlugin()
         }
     };
 
@@ -208,7 +210,8 @@ async function loadPlugins(ctx: RequirePluginContext): Promise<Plugins> {
 async function loadNodeModulePlugins(ctx: RequirePluginContext): Promise<Plugins> {
     const results: Plugins = {
         require: {},
-        'run-if': {}
+        'run-if': {},
+        run: {}
     };
     const packageJsonFiles = await getPackageJsonFiles();
     for (let packageJsonFile of packageJsonFiles) {
@@ -216,7 +219,7 @@ async function loadNodeModulePlugins(ctx: RequirePluginContext): Promise<Plugins
         if (content.stampy && content.stampy.plugins) {
             const packageJsonDir = path.dirname(packageJsonFile);
             const plugins = content.stampy.plugins;
-            ['require', 'run-if'].forEach(pluginType => {
+            PLUGIN_TYPES.forEach(pluginType => {
                 for (let name in plugins[pluginType] || {}) {
                     const Plugin = require(path.join(packageJsonDir, plugins[pluginType][name]));
                     results[pluginType][name] = new Plugin();
@@ -245,7 +248,8 @@ async function loadNodeModulePlugins(ctx: RequirePluginContext): Promise<Plugins
 async function loadConfigPlugins(ctx: RequirePluginContext): Promise<Plugins> {
     const results: Plugins = {
         require: {},
-        'run-if': {}
+        'run-if': {},
+        run: {}
     };
     for (let group in ctx.config.plugins || {}) {
         for (let name in ctx.config.plugins[group]) {

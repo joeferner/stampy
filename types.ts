@@ -1,5 +1,13 @@
 import * as ssh2 from "ssh2";
+import * as scp2 from "scp2";
 import EventEmitter = NodeJS.EventEmitter;
+
+export const PLUGIN_TYPES = ['require', 'run-if', 'run'];
+
+export interface FileRef {
+    fullPath: string;
+    packagePath: string;
+}
 
 export interface Command {
     description?: string;
@@ -19,6 +27,7 @@ export interface Config {
     plugins?: {
         require: { [name: string]: string };
         'run-if': { [name: string]: string };
+        run: { [name: string]: string };
     };
     commands: { [command: string]: Command };
     hosts?: { host: string, roles: string[] }[];
@@ -36,14 +45,15 @@ export interface CommandLineArguments {
 export interface Plugins {
     require: { [key: string]: RequirePlugin };
     'run-if': { [key: string]: RunIfPlugin };
+    run: { [key: string]: RunPlugin };
 }
 
 export interface ScriptRef {
     basePath: string;
     requirePluginName: string;
     args: string[];
-    scripts?: string[];
-    files?: string[];
+    scripts?: FileRef[];
+    files?: FileRef[];
 }
 
 export interface StampyLine {
@@ -53,10 +63,9 @@ export interface StampyLine {
 
 export interface Script {
     sourceScriptRef: ScriptRef;
-    path: string;
-    remoteFile?: string;
+    path: FileRef;
     requires: Script[];
-    files: string[];
+    files: FileRef[];
     stampyLines: StampyLine[];
 }
 
@@ -89,6 +98,7 @@ export interface ExecutionContext extends BaseContext {
     local: boolean;
     sshOptions: ssh2.ConnectConfig;
     client?: ssh2.Client;
+    scpClient?: scp2.Client;
     roles: string[];
     scripts: Script[];
     logColorHostFn: (msg: string) => string;
@@ -105,8 +115,8 @@ export interface Plugin {
 }
 
 export interface ExpandRequiresResults {
-    scripts?: string[];
-    files?: string[];
+    scripts?: FileRef[];
+    files?: FileRef[];
 }
 
 export interface RequirePlugin extends Plugin {
@@ -125,4 +135,12 @@ export interface RunIfPlugin extends Plugin {
      * the required scripts will be executed
      */
     shouldExecute?(ctx: ExecutionContext, script: Script, args: string[]): Promise<boolean>;
+}
+
+export interface RunResults {
+    files?: FileRef[];
+}
+
+export interface RunPlugin extends Plugin {
+    run?(ctx: ExecutionContext, script: Script, args: string[]): Promise<RunResults>;
 }

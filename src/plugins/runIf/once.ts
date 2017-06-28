@@ -28,6 +28,7 @@ export class OnceRunIfPlugin extends ExprRunIfPlugin {
     }
 
     private getRemoteTestFile(script: Script): string {
-        return path.basename(script.remoteFile) + '.once';
+        const remoteFile = path.join('.stampy/working', script.path.packagePath);
+        return path.basename(remoteFile) + '.once';
     }
 }

@@ -18,7 +18,7 @@ export function log(ctx: BaseContext, script: Script | string, action: LogAction
     const scriptString = typeof script === 'string'
         ? script
         : script
-            ? script.path
+            ? script.path.packagePath
             : '';
 
     if (ctx.outputFormat === 'json') {

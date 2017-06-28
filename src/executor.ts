@@ -1,4 +1,4 @@
-import {BaseContext, ExecutionContext, Script} from "../types";
+import {BaseContext, ExecutionContext, FileRef, RunPlugin, Script} from "../types";
 import * as _ from "lodash";
 import * as child_process from "child_process";
 import * as ssh2 from "ssh2";
@@ -11,6 +11,7 @@ import * as chalk from "chalk";
 import {log} from "./log";
 import * as os from "os";
 import * as fs from "fs-extra";
+import * as NestedError from "nested-error-stacks";
 
 const ScpClient = scp2.Client;
 const exec = child_process.exec;
@@ -30,11 +31,16 @@ export async function execute(ctx: BaseContext): Promise<void> {
         try {
             if (!ctx.local) {
                 ctx.client = await getSshClient(ctx);
+                ctx.scpClient = new ScpClient(ctx.sshOptions);
+                ctx.scpClient.on('error', err => {
+                    throw new NestedError('scp error', err);
+                });
             }
             await syncFiles(ctx);
             await executeScripts(ctx);
             if (ctx.client) {
                 ctx.client.end();
+                ctx.scpClient.close();
             }
         } finally {
             colorFnQueue.push(ctx.logColorHostFn);
@@ -93,84 +99,76 @@ async function syncFilesLocal(ctx: ExecutionContext): Promise<void> {
     }
     for (let include of ctx.includes) {
         await copyFile(
+            ctx,
             null,
-            path.join(ctx.baseDir, include),
-            path.join(os.homedir(), '.stampy/working', include)
+            {
+                fullPath: path.join(ctx.baseDir, include),
+                packagePath: include
+            }
         );
     }
 
     async function syncScript(ctx: ExecutionContext, script: Script): Promise<void> {
-        let localFile = path.resolve(script.sourceScriptRef.basePath, script.path);
-        script.remoteFile = path.join(os.homedir(), '.stampy/working', script.path);
-        await copyFile(script, localFile, script.remoteFile);
+        await copyFile(ctx, script, script.path);
         for (let file of script.files) {
-            const scriptPath = path.dirname(script.path);
-            localFile = path.resolve(script.sourceScriptRef.basePath, scriptPath, file);
-            const remoteFile = path.join(os.homedir(), '.stampy/working', scriptPath, file);
-            await copyFile(script, localFile, remoteFile);
+            await copyFile(ctx, script, file);
         }
-    }
-
-    async function copyFile(script: Script, localFile: string, remoteFile: string) {
-        log(ctx, script, 'COPY', `${path.relative(ctx.cwd, localFile)} -> ~${remoteFile.substr(os.homedir().length)}`);
-        return fs.copy(localFile, remoteFile);
     }
 }
 
 function syncFilesRemote(ctx: ExecutionContext): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-        const client = new ScpClient(ctx.sshOptions);
-        client.on('error', err => {
-            reject(err);
-        });
-        syncFilesToClient(ctx, client, ctx.scripts)
+        syncFilesToClient(ctx, ctx.scripts)
             .then(() => {
-                client.close();
                 resolve();
             })
             .catch((err) => {
                 reject(err);
             });
 
-        async function syncFilesToClient(ctx: ExecutionContext, client: scp2.Client, scripts: Script[]): Promise<void> {
+        async function syncFilesToClient(ctx: ExecutionContext, scripts: Script[]): Promise<void> {
             for (let script of scripts) {
-                await syncScript(ctx, client, script);
+                await syncScript(ctx, script);
             }
             for (let include of ctx.includes) {
                 await copyFile(
-                    client,
+                    ctx,
                     null,
-                    path.join(ctx.baseDir, include),
-                    path.join('.stampy/working', include)
+                    {
+                        fullPath: path.join(ctx.baseDir, include),
+                        packagePath: include
+                    }
                 );
             }
         }
 
-        async function syncScript(ctx: ExecutionContext, client: scp2.Client, script: Script): Promise<void> {
-            let localFile = path.resolve(script.sourceScriptRef.basePath, script.path);
-            script.remoteFile = path.join('.stampy/working', script.path);
-            await copyFile(client, script, localFile, script.remoteFile);
+        async function syncScript(ctx: ExecutionContext, script: Script): Promise<void> {
+            await copyFile(ctx, script, script.path);
             for (let file of script.files) {
-                const scriptPath = path.dirname(script.path);
-                localFile = path.resolve(script.sourceScriptRef.basePath, scriptPath, file);
-                const remoteFile = path.join('.stampy/working', scriptPath, file);
                 log(ctx, script, 'COPY', file);
-                await copyFile(client, script, localFile, remoteFile);
+                await copyFile(ctx, script, file);
             }
         }
-
-        async function copyFile(client: scp2.Client, script: Script, localFile: string, remoteFile: string) {
-            log(ctx, script, 'COPY', `${path.relative(ctx.cwd, localFile)} -> ${ctx.sshOptions.host}:~/${remoteFile}`);
-            return new Promise<void>((resolve, reject) => {
-                return client.upload(localFile, remoteFile, err => {
-                    if (err) {
-                        return reject(err);
-                    }
-                    return resolve();
-                });
-            });
-        }
     });
+}
+
+async function copyFile(ctx: ExecutionContext, script: Script, file: FileRef) {
+    if (ctx.local) {
+        const remoteFile = path.join(os.homedir(), '.stampy/working', file.packagePath);
+        log(ctx, script, 'COPY', `${file.fullPath} -> ${remoteFile}`);
+        return fs.copy(file.fullPath, remoteFile);
+    } else {
+        const remoteFile = path.join('.stampy/working', file.packagePath);
+        log(ctx, script, 'COPY', `${file.fullPath} -> ${ctx.sshOptions.host}:${remoteFile}`);
+        return new Promise<void>((resolve, reject) => {
+            return ctx.scpClient.upload(file.fullPath, remoteFile, err => {
+                if (err) {
+                    return reject(err);
+                }
+                return resolve();
+            });
+        });
+    }
 }
 
 async function executeScripts(ctx: ExecutionContext): Promise<void> {
@@ -297,38 +295,63 @@ function executeCommandRemote(ctx: ExecutionContext, script: Script, command: st
 }
 
 function executeScript(ctx: ExecutionContext, script: Script): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        log(ctx, script, 'RUN');
-        if (ctx.dryRun) {
-            return resolve();
+    log(ctx, script, 'RUN');
+    if (ctx.dryRun) {
+        return Promise.resolve();
+    }
+
+    return executeRunLines(ctx, script)
+        .then(async (additionalFiles: FileRef[]) => {
+            for (let f of additionalFiles) {
+                await copyFile(ctx, script, f);
+            }
+        })
+        .then(() => {
+            return new Promise<void>((resolve, reject) => {
+                const ee = executeCommand(ctx, script, script.path.packagePath);
+                ee.on('stdout', data => {
+                    let m;
+                    if (m = (data + '').match(/^STAMPY:(.*)/)) {
+                        const exprStr = m[1].trim();
+                        const expr = JSON.parse(rjson.transform(exprStr));
+                        switch (expr.action) {
+                            case 'SKIP':
+                                log(ctx, script, 'SKIP');
+                                return resolve();
+                            default:
+                                return reject(new Error(`Invalid action received from script "${expr.action}"`));
+                        }
+                    }
+                    log(ctx, script, 'STDOUT', data);
+                });
+                ee.on('stderr', data => {
+                    log(ctx, script, 'STDERR', data);
+                });
+                ee.on('close', (code) => {
+                    if (code === 0) {
+                        resolve();
+                    } else {
+                        reject(new Error(`process "${script.path.packagePath}" exited with code ${code}`));
+                    }
+                });
+            });
+        });
+}
+
+async function executeRunLines(ctx: ExecutionContext, script: Script): Promise<FileRef[]> {
+    let results = [];
+    for (let line of script.stampyLines) {
+        if (line.type === 'run') {
+            const runPluginName = line.args[0];
+            const runPlugin: RunPlugin = ctx.plugins['run'][runPluginName];
+            if (!runPlugin) {
+                throw new Error(`Could not find 'run' plugin '${runPluginName}'`);
+            }
+            const runResults = await runPlugin.run(ctx, script, line.args.slice(1));
+            results = results.concat(runResults.files || []);
         }
-        const ee = executeCommand(ctx, script, script.path);
-        ee.on('stdout', data => {
-            let m;
-            if (m = (data + '').match(/^STAMPY:(.*)/)) {
-                const exprStr = m[1].trim();
-                const expr = JSON.parse(rjson.transform(exprStr));
-                switch (expr.action) {
-                    case 'SKIP':
-                        log(ctx, script, 'SKIP');
-                        return resolve();
-                    default:
-                        return reject(new Error(`Invalid action received from script "${expr.action}"`));
-                }
-            }
-            log(ctx, script, 'STDOUT', data);
-        });
-        ee.on('stderr', data => {
-            log(ctx, script, 'STDERR', data);
-        });
-        ee.on('close', (code) => {
-            if (code === 0) {
-                resolve();
-            } else {
-                reject(new Error(`process "${script.path}" exited with code ${code}`));
-            }
-        });
-    });
+    }
+    return results;
 }
 
 function isLocal(ctx: ExecutionContext) {
