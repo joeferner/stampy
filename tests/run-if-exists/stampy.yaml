@@ -1,0 +1,17 @@
+
+defaults:
+  compareMd5sOnCopy: false
+  ssh:
+    username: root
+    password: root
+
+commands:
+  default:
+    scripts:
+    - ./start.sh
+
+roles:
+  all:
+    hosts:
+    - localhost
+    - stampy-host1

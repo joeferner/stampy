@@ -8,7 +8,7 @@
     "prepublish": "npm run build",
     "build": "tsc",
     "watch": "tsc -w",
-    "test": "nodeunit ./dist/tests/test.js"
+    "test": "istanbul cover nodeunit ./dist/tests/test.js && remap-istanbul -i coverage/coverage.json -o coverage/report -t html"
   },
   "repository": "https://github.com/joeferner/stampy.git",
   "author": "Joe Ferner <joe@fernsroth.com>",
@@ -42,6 +42,8 @@
   },
   "devDependencies": {
     "@types/nodeunit": "^0.0.30",
+    "istanbul": "^0.4.5",
+    "remap-istanbul": "^0.9.5",
     "nodeunit": "^0.11.1",
     "typescript": "^2.3.4"
   }

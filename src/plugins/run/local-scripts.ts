@@ -31,7 +31,7 @@ export class LocalScriptsRunPlugin implements RunPlugin {
                 cwd: path.dirname(file.fullPath)
             };
             let cmd = 'bash -l << STAMPY_BASH_EOF\n';
-            cmd += `function stampy_cp { echo 'STAMPY: {"action": "CP", "src": "'\\$1'", "dest": "'\\$2'"}' }\n`;
+            cmd += `function stampy_cp { echo 'STAMPY: {"action": "CP", "src": "'\\$1'", "dest": "'\\$2'"}'; }\n`;
             cmd += `export -f stampy_cp\n`;
             cmd += `${file.fullPath} ${args.join(' ')}\n`;
             cmd += `STAMPY_BASH_EOF`;
@@ -70,7 +70,7 @@ export class LocalScriptsRunPlugin implements RunPlugin {
                             ctx.pluginData['local-scripts'][file.packagePath] = true;
                             return resolve();
                         }
-                        return reject(new Error(`Received bad return code from "${file} (code: ${code})"`));
+                        return reject(new Error(`Received bad return code from "${file.packagePath}" (code: ${code})`));
                     })
                     .catch(err => {
                         return reject(new NestedError(`Pending promise failed`, err));
