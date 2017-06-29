@@ -77,8 +77,7 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
                     exec: null,
                     copyFile: null,
                     log: null,
-                    logColorHostFn: null,
-                    workingPath: null
+                    logColorHostFn: null
                 };
             }
         }
@@ -90,9 +89,6 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
         ctx.exec = executeCommand.bind(null, ctx);
         ctx.log = log.bind(null, ctx);
         ctx.copyFile = copyFile.bind(null, ctx);
-        ctx.workingPath = ctx.local
-            ? path.join(os.homedir(), '.stampy/working')
-            : `/root/.stampy/working/`;
     }
     return executionContexts;
 }
@@ -164,13 +160,12 @@ function syncFilesRemote(ctx: ExecutionContext): Promise<void> {
 }
 
 async function copyFile(ctx: ExecutionContext, script: Script, file: FileRef): Promise<void> {
-    const workingPath = path.join('.stampy/working', file.packagePath);
-    if (!workingPath.startsWith('.stampy/working')) {
+    const destFile = path.join(ctx.options.workingPath, file.packagePath);
+    if (!destFile.startsWith(ctx.options.workingPath)) {
         throw new Error(`package path outside of working directory "${file.packagePath}"`);
     }
     const srcFileMd5 = ctx.options.compareMd5sOnCopy ? await md5LocalFile(file.fullPath) : null;
     if (ctx.local) {
-        const destFile = path.join(os.homedir(), workingPath);
         const destFileMd5 = ctx.options.compareMd5sOnCopy ? await md5LocalFile(destFile) : null;
         if (ctx.options.compareMd5sOnCopy && srcFileMd5 === destFileMd5) {
             log(ctx, script, 'SKIP', `MD5s match: ${file.fullPath} -> ${destFile}`);
@@ -179,7 +174,6 @@ async function copyFile(ctx: ExecutionContext, script: Script, file: FileRef): P
         log(ctx, script, 'COPY', `${file.fullPath} -> ${destFile}`);
         return fs.copy(file.fullPath, destFile);
     } else {
-        const destFile = workingPath;
         const destFileMd5 = ctx.options.compareMd5sOnCopy ? await md5RemoteFile(ctx, script, destFile) : null;
         if (ctx.options.compareMd5sOnCopy && srcFileMd5 === destFileMd5) {
             log(ctx, script, 'SKIP', `MD5s match: ${file.fullPath} -> ${ctx.sshOptions.host}:${destFile}`);
@@ -285,7 +279,7 @@ function executeCommand(ctx: ExecutionContext, script: Script, command: string):
 }
 
 function getFullCommand(ctx: ExecutionContext, script: Script, command: string) {
-    const scriptPath = path.dirname(path.join(ctx.workingPath, script.path.packagePath));
+    const scriptPath = path.dirname(path.join(ctx.options.workingPath, script.path.packagePath));
     let result = 'bash -l << STAMPY_BASH_EOF\n';
     result += 'set -eu\n';
     result += `cd "${scriptPath}"\n`;

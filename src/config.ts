@@ -35,6 +35,7 @@ export async function load(file: string, groups: string[]): Promise<Config> {
         ssh: {},
         sudo: false,
         compareMd5sOnCopy: true,
+        workingPath: '/tmp/stampy',
         rebootCommand: 'reboot',
         ...<any>config.defaults
     };

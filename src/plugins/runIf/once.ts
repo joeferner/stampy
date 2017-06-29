@@ -4,7 +4,7 @@ import * as path from "path";
 
 export class OnceRunIfPlugin extends ExprRunIfPlugin {
     async shouldExecute(ctx: ExecutionContext, script: Script, args: string[]): Promise<boolean> {
-        const remoteTestFile = this.getRemoteTestFile(script);
+        const remoteTestFile = OnceRunIfPlugin.getRemoteTestFile(ctx, script);
         return super.shouldExecute(ctx, script, [`! -f "${remoteTestFile}"`]);
     }
 
@@ -12,7 +12,7 @@ export class OnceRunIfPlugin extends ExprRunIfPlugin {
         if (code !== 0) {
             return Promise.resolve();
         }
-        const remoteTestFile = this.getRemoteTestFile(script);
+        const remoteTestFile = OnceRunIfPlugin.getRemoteTestFile(ctx, script);
         return new Promise<void>((resolve, reject) => {
             ctx.exec(script, `touch "${remoteTestFile}"`)
                 .on('stdout', data => {
@@ -34,8 +34,8 @@ export class OnceRunIfPlugin extends ExprRunIfPlugin {
         });
     }
 
-    private getRemoteTestFile(script: Script): string {
-        const remoteFile = path.join('.stampy/working', script.path.packagePath);
+    private static getRemoteTestFile(ctx: ExecutionContext, script: Script): string {
+        const remoteFile = path.join(ctx.options.workingPath, script.path.packagePath);
         return path.basename(remoteFile) + '.once';
     }
 }

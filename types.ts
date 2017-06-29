@@ -24,6 +24,7 @@ export interface HostOptions {
     rebootCommand: string;
     sudo: boolean;
     compareMd5sOnCopy: boolean;
+    workingPath: string;
 }
 
 export interface Config {
@@ -107,7 +108,6 @@ export interface ExecutionContext extends BaseContext {
     scripts: Script[];
     logColorHostFn: (msg: string) => string;
     options: HostOptions;
-    workingPath: string;
 
     exec: (script: Script, command: string) => EventEmitter;
     copyFile: (script: Script, file: FileRef) => Promise<void>;
