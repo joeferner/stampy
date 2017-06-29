@@ -29,6 +29,7 @@ export async function execute(ctx: BaseContext): Promise<void> {
                     throw new NestedError('scp error', err);
                 });
             }
+            ctx.scripts = await calculateExecutionOrder(ctx, ctx.scripts);
             await syncFiles(ctx);
             await executeScripts(ctx);
             if (ctx.client) {
@@ -75,7 +76,6 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
     let executionContexts = _.values(results);
     for (let ctx of executionContexts) {
         ctx.local = isLocal(ctx);
-        ctx.scripts = await calculateExecutionOrder(ctx, ctx.scripts);
         ctx.exec = executeCommand.bind(null, ctx);
         ctx.log = log.bind(null, ctx);
         ctx.copyFile = copyFile.bind(null, ctx);
@@ -189,10 +189,17 @@ async function executeScriptCompleteFunctions(ctx: ExecutionContext, script: Scr
     for (let line of script.stampyLines) {
         const pluginName = line.args[0];
         let type = line.type;
+        if (type.endsWith("!")) {
+            type = type.substring(0, type.length - 1);
+        }
         if (type === 'skip-if') {
             type = 'run-if';
         }
-        const plugin = ctx.plugins[type][pluginName];
+        const pluginsForType = ctx.plugins[type];
+        if (!pluginsForType) {
+            throw new Error(`unexpected plugin type "${type}"`);
+        }
+        const plugin = pluginsForType[pluginName];
         if (!plugin) {
             throw new Error(`Could not find '${line.type}' plugin '${pluginName}'`);
         }

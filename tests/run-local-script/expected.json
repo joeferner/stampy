@@ -4,7 +4,6 @@
     {"host":"localhost","action":"RUN","script":"./start.sh","data":null},
     {"host":"localhost","action":"RUN","script":"./local.sh","data":null},
     {"host":"localhost","action":"STDOUT","script":"./local.sh","data":"local script"},
-    {"host":"localhost","action":"STDOUT","script":"./local.sh","data":null},
     {"host":"localhost","action":"COPY","script":"./start.sh"},
     {"host":"localhost","action":"STDOUT","script":"./local.sh","data":null},
     {"host":"localhost","action":"STDOUT","script":"./start.sh","data":"start.sh"},

@@ -2,7 +2,14 @@ import * as ssh2 from "ssh2";
 import * as scp2 from "scp2";
 import EventEmitter = NodeJS.EventEmitter;
 
-export const PLUGIN_TYPES = ['require', 'run-if', 'skip-if', 'run'];
+export const PLUGIN_TYPES = [
+    'require',
+    'run-if',
+    'run-if!',
+    'skip-if',
+    'skip-if!',
+    'run'
+];
 
 export interface FileRef {
     fullPath: string;
@@ -131,16 +138,6 @@ export interface RequirePlugin extends Plugin {
 }
 
 export interface RunIfPlugin extends Plugin {
-    /**
-     * Called before the requires are expanded and executed. Returning false will prevent the
-     * follow script require tree to be skipped
-     */
-    preRunShouldExecute?(ctx: ExecutionContext, script: Script, args: string[]): Promise<boolean>;
-
-    /**
-     * Determines if the given script should be executed. Even if this function returns false
-     * the required scripts will be executed
-     */
     shouldExecute?(ctx: ExecutionContext, script: Script, args: string[]): Promise<boolean>;
 }
 

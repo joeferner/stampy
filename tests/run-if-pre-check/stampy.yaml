@@ -1,0 +1,18 @@
+
+defaults:
+  compareMd5sOnCopy: false
+  ssh:
+    username: root
+    password: root
+
+commands:
+  default:
+    description: Run a simple command chain
+    scripts:
+    - ./a.sh
+
+roles:
+  all:
+    hosts:
+    - localhost
+    - stampy-host1
