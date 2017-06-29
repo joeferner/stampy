@@ -2,7 +2,7 @@ import * as ssh2 from "ssh2";
 import * as scp2 from "scp2";
 import EventEmitter = NodeJS.EventEmitter;
 
-export const PLUGIN_TYPES = ['require', 'run-if', 'run'];
+export const PLUGIN_TYPES = ['require', 'run-if', 'skip-if', 'run'];
 
 export interface FileRef {
     fullPath: string;
@@ -19,11 +19,15 @@ export interface Host {
     hosts: string[]
 }
 
+export interface HostOptions {
+    ssh: ssh2.ConnectConfig;
+    rebootCommand: string;
+    sudo: boolean;
+    compareMd5sOnCopy: boolean;
+}
+
 export interface Config {
-    sudo?: boolean;
-    defaults: {
-        ssh: ssh2.ConnectConfig;
-    };
+    defaults: HostOptions;
     plugins?: {
         require: { [name: string]: string };
         'run-if': { [name: string]: string };
@@ -102,8 +106,11 @@ export interface ExecutionContext extends BaseContext {
     roles: string[];
     scripts: Script[];
     logColorHostFn: (msg: string) => string;
+    options: HostOptions;
+    workingPath: string;
 
     exec: (script: Script, command: string) => EventEmitter;
+    copyFile: (script: Script, file: FileRef) => Promise<void>;
     log: (script: Script, action: LogAction, data?) => void;
 }
 

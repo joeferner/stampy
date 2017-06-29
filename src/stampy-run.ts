@@ -17,6 +17,9 @@ import * as NestedError from "nested-error-stacks";
 import {log} from "./log";
 import * as glob from "glob";
 import {OnceRunIfPlugin} from "./plugins/runIf/once";
+import {ExternalFileRequirePlugin} from "./plugins/require/external-file";
+import {ExistsRunIfPlugin} from "./plugins/runIf/exists";
+import {CmdRunIfPlugin} from "./plugins/runIf/cmd";
 
 export async function run(argv: string[]): Promise<void> {
     const args: any = commander
@@ -186,12 +189,15 @@ async function loadPlugins(ctx: RequirePluginContext): Promise<Plugins> {
             scripts: new ScriptsRequirePlugin(),
             script: new ScriptsRequirePlugin(),
             files: new FilesRequirePlugin(),
-            file: new FilesRequirePlugin()
+            file: new FilesRequirePlugin(),
+            'external-file': new ExternalFileRequirePlugin()
         },
         'run-if': {
             'has-role': new HasRolesRunIfPlugin(),
             'has-roles': new HasRolesRunIfPlugin(),
             expr: new ExprRunIfPlugin(),
+            exists: new ExistsRunIfPlugin(),
+            cmd: new CmdRunIfPlugin(),
             once: new OnceRunIfPlugin()
         },
         run: {

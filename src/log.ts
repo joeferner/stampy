@@ -5,7 +5,7 @@ import {BaseContext, ExecutionContext, LogAction, Script} from "../types";
 export function log(ctx: BaseContext, script: Script | string, action: LogAction, data?) {
     data = data ? data.toString().replace(/\n$/, '') : null;
     if (data) {
-        const lines = data.split('\n');
+        const lines = data.replace(/\r/g, '').split('\n');
         if (lines.length > 1) {
             for (let line of lines) {
                 log(ctx, script, action, line);

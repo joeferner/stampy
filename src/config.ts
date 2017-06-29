@@ -31,8 +31,13 @@ export async function load(file: string, groups: string[]): Promise<Config> {
         config.roles = transformHostsToRoles(config.hosts);
     }
     config.data = config.data || {};
-    config.defaults = <any>config.defaults || {};
-    config.defaults.ssh = config.defaults.ssh || {};
+    config.defaults = {
+        ssh: {},
+        sudo: false,
+        compareMd5sOnCopy: true,
+        rebootCommand: 'reboot',
+        ...<any>config.defaults
+    };
     for (let groupName of groups) {
         if (!config.groups[groupName]) {
             throw new Error(`Could not find group with name "${groupName}"`);

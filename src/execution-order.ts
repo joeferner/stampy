@@ -30,15 +30,17 @@ function isScriptInResults(results: Script[], script: Script): boolean {
 
 async function shouldRun(ctx: ExecutionContext, script: Script): Promise<boolean> {
     for (let line of script.stampyLines) {
-        if (line.type === 'run-if') {
+        if (line.type === 'run-if' || line.type === 'skip-if') {
             const runIfPluginName = line.args[0];
             const runIfPlugin = ctx.plugins['run-if'][runIfPluginName];
             if (!runIfPlugin) {
                 throw new Error(`Could not find 'run-if' plugin '${runIfPluginName}'`);
             }
             if (runIfPlugin.preRunShouldExecute) {
-                const result = await
-                    runIfPlugin.preRunShouldExecute(ctx, script, line.args.slice(1));
+                let result = await runIfPlugin.preRunShouldExecute(ctx, script, line.args.slice(1));
+                if (line.type === 'skip-if') {
+                    result = !result;
+                }
                 if (!result) {
                     return false;
                 }

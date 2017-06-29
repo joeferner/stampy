@@ -11,8 +11,8 @@ export class EjsRunPlugin implements RunPlugin {
         if (args.length !== 1 && args.length !== 2) {
             throw new Error(`ejs requires 1 or 2 arguments found ${args.length}`);
         }
-        const src = EjsRunPlugin.getSourceFileName(ctx, args[0]);
-        const dest = await EjsRunPlugin.getDestFileName(ctx, args, src);
+        const src = EjsRunPlugin.getSourceFileName(ctx, script, args[0]);
+        const dest = await EjsRunPlugin.getDestFileName(ctx, script, args, src);
         const template = await EjsRunPlugin.compileTemplate(ctx, src);
         const results = EjsRunPlugin.executeTemplate(ctx, template, src);
         await fs.writeFile(dest.fullPath, results, 'utf8');
@@ -21,10 +21,10 @@ export class EjsRunPlugin implements RunPlugin {
         };
     }
 
-    private static async getDestFileName(ctx: ExecutionContext, args: string[], src: FileRef): Promise<FileRef> {
+    private static async getDestFileName(ctx: ExecutionContext, script: Script, args: string[], src: FileRef): Promise<FileRef> {
         const packagePath = args.length === 1
             ? EjsRunPlugin.removeEjsExtension(src.packagePath)
-            : EjsRunPlugin.getSourceFileName(ctx, args[1]).packagePath;
+            : EjsRunPlugin.getSourceFileName(ctx, script, args[1]).packagePath;
         return new Promise<FileRef>((resolve, reject) => {
             tmp.tmpName(function _tempNameGenerated(err, path) {
                 if (err) {
@@ -38,8 +38,8 @@ export class EjsRunPlugin implements RunPlugin {
         });
     }
 
-    private static getSourceFileName(ctx: ExecutionContext, arg: string): FileRef {
-        const fullPath = path.join(ctx.cwd, arg);
+    private static getSourceFileName(ctx: ExecutionContext, script: Script, arg: string): FileRef {
+        const fullPath = path.join(path.dirname(script.path.fullPath), arg);
         return {
             fullPath: fullPath,
             packagePath: relative(ctx.baseDir, fullPath)

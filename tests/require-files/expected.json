@@ -7,7 +7,6 @@
     {"host":"stampy-host1","action":"CONNECT","script":"","data":"username: root"},
     {"host":"stampy-host1","action":"COPY","script":"./start.sh"},
     {"host":"stampy-host1","action":"COPY","script":"./start.sh"},
-    {"host":"stampy-host1","action":"COPY","script":"./start.sh"},
     {"host":"stampy-host1","action":"RUN","script":"./start.sh","data":null},
     {"host":"stampy-host1","action":"STDOUT","script":"./start.sh","data":"Hello World"},
     {"host":"local","action":"DONE","script":"","data":null}
