@@ -5,14 +5,14 @@
     {"host":"localhost","action":"RUN","script":"./local.sh","data":null},
     {"host":"localhost","action":"STDOUT","script":"./local.sh","data":"local script"},
     {"host":"localhost","action":"COPY","script":"./start.sh"},
-    {"host":"localhost","action":"STDOUT","script":"./local.sh","data":null},
     {"host":"localhost","action":"STDOUT","script":"./start.sh","data":"start.sh"},
     {"host":"localhost","action":"STDOUT","script":"./start.sh","data":"Hello World"},
-    {"host":"stampy-host1","action":"CONNECT","script":"","data":"username: root"},
+    {"host":"stampy-host1","action":"CONNECT","script":"","data":"sshpass -p \"root\" ssh -q root@stampy-host1"},
     {"host":"stampy-host1","action":"COPY","script":"./start.sh"},
     {"host":"stampy-host1","action":"RUN","script":"./start.sh","data":null},
     {"host":"stampy-host1","action":"STDOUT","script":"./start.sh","data":"start.sh"},
     {"host":"stampy-host1","action":"STDOUT","script":"./start.sh","data":"Hello World"},
+    {"host":"stampy-host1","action":"CLOSE","script":"","data":"ssh connection closed (code: null)"},
     {"host":"local","action":"DONE","script":"","data":null}
   ]
 }

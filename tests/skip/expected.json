@@ -7,7 +7,7 @@
     {"host":"localhost","action":"RUN","script":"./skip-echo.sh","data":null},
     {"host":"localhost","action":"SKIP","script":"./skip-echo.sh","data":null},
     {"host":"localhost","action":"RUN","script":"./skip.sh","data":null},
-    {"host":"stampy-host1","action":"CONNECT","script":"","data":"username: root"},
+    {"host":"stampy-host1","action":"CONNECT","script":"","data":"sshpass -p \"root\" ssh -q root@stampy-host1"},
     {"host":"stampy-host1","action":"COPY","script":"./skip-run-if.sh"},
     {"host":"stampy-host1","action":"COPY","script":"./skip-echo.sh"},
     {"host":"stampy-host1","action":"COPY","script":"./skip.sh"},
@@ -15,6 +15,7 @@
     {"host":"stampy-host1","action":"RUN","script":"./skip-echo.sh","data":null},
     {"host":"stampy-host1","action":"SKIP","script":"./skip-echo.sh","data":null},
     {"host":"stampy-host1","action":"RUN","script":"./skip.sh","data":null},
+    {"host":"stampy-host1","action":"CLOSE","script":"","data":"ssh connection closed (code: null)"},
     {"host":"local","action":"DONE","script":"","data":null}
   ]
 }

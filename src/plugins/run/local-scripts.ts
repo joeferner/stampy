@@ -46,7 +46,7 @@ export class LocalScriptsRunPlugin implements RunPlugin {
                         const expr = JSON.parse(rjson.transform(exprStr));
                         switch (expr.action) {
                             case 'CP':
-                                const fileToCopyFullPath = path.join(path.dirname(script.path.fullPath), expr.src);
+                                const fileToCopyFullPath = path.resolve(path.dirname(script.path.fullPath), expr.src);
                                 const fileToCopy = {
                                     fullPath: fileToCopyFullPath,
                                     packagePath: expr.dest && expr.dest.length > 0 ? expr.dest : relative(ctx.baseDir, fileToCopyFullPath)

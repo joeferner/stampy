@@ -1,5 +1,3 @@
-import * as ssh2 from "ssh2";
-import * as scp2 from "scp2";
 import EventEmitter = NodeJS.EventEmitter;
 
 export const PLUGIN_TYPES = [
@@ -26,8 +24,18 @@ export interface Host {
     hosts: string[]
 }
 
+export interface SshConfig {
+    host?: string;
+    username?: string;
+    password?: string;
+    readyTimeout?: number;
+    privateKey?: string;
+    sshCommand?: string;
+    scpCommand?: string;
+}
+
 export interface HostOptions {
-    ssh: ssh2.ConnectConfig;
+    ssh: SshConfig;
     rebootCommand: string;
     sudo: boolean;
     compareMd5sOnCopy: boolean;
@@ -83,7 +91,7 @@ export interface Script {
 
 export type OutputFormat = 'normal' | 'json';
 
-export type LogAction = 'RUN' | 'STDERR' | 'STDOUT' | 'SKIP' | 'COPY' | 'CONNECT' | 'DONE';
+export type LogAction = 'RUN' | 'STDERR' | 'STDOUT' | 'SKIP' | 'COPY' | 'CONNECT' | 'CLOSE' | 'DONE';
 
 export interface BaseContext {
     baseDir: string;
@@ -106,11 +114,16 @@ export interface RequirePluginContext extends BaseContext {
     log: (action: LogAction, data?) => void;
 }
 
+export interface SshClient {
+    end: () => Promise<void>;
+    exec: (cmd: string) => Promise<EventEmitter>;
+    run: (script: Script, cmd: string) => Promise<number>;
+}
+
 export interface ExecutionContext extends BaseContext {
     local: boolean;
-    sshOptions: ssh2.ConnectConfig;
-    client?: ssh2.Client;
-    scpClient?: scp2.Client;
+    sshOptions: SshConfig;
+    sshClient?: SshClient;
     roles: string[];
     scripts: Script[];
     logColorHostFn: (msg: string) => string;

@@ -9,7 +9,7 @@
     {"host":"localhost","action":"SKIP","script":"./expr-false.sh","data":null},
     {"host":"localhost","action":"SKIP","script":"./expr-skip-if-true.sh","data":null},
     {"host":"localhost","action":"RUN","script":"./start.sh","data":null},
-    {"host":"stampy-host1","action":"CONNECT","script":"","data":"username: root"},
+    {"host":"stampy-host1","action":"CONNECT","script":"","data":"sshpass -p \"root\" ssh -q root@stampy-host1"},
     {"host":"stampy-host1","action":"COPY","script":"./expr-true.sh"},
     {"host":"stampy-host1","action":"COPY","script":"./expr-false.sh"},
     {"host":"stampy-host1","action":"COPY","script":"./expr-skip-if-true.sh"},
@@ -19,6 +19,7 @@
     {"host":"stampy-host1","action":"SKIP","script":"./expr-false.sh","data":null},
     {"host":"stampy-host1","action":"SKIP","script":"./expr-skip-if-true.sh","data":null},
     {"host":"stampy-host1","action":"RUN","script":"./start.sh","data":null},
+    {"host":"stampy-host1","action":"CLOSE","script":"","data":"ssh connection closed (code: null)"},
     {"host":"local","action":"DONE","script":"","data":null}
   ]
 }

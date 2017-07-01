@@ -14,6 +14,10 @@ export function log(ctx: BaseContext, script: Script | string, action: LogAction
         }
     }
 
+    if ((action === 'STDOUT' || action == 'STDERR') && !data) {
+        return;
+    }
+
     const host = (<ExecutionContext>ctx).sshOptions ? (<ExecutionContext>ctx).sshOptions.host : 'local';
     const scriptString = typeof script === 'string'
         ? script
@@ -35,6 +39,9 @@ export function log(ctx: BaseContext, script: Script | string, action: LogAction
     switch (action) {
         case 'CONNECT':
             actionString = chalk.yellow('CONN');
+            break;
+        case 'CLOSE':
+            actionString = chalk.yellow('CLOS');
             break;
         case 'RUN':
             actionString = chalk.green('RUN ');
@@ -76,7 +83,12 @@ export function log(ctx: BaseContext, script: Script | string, action: LogAction
 
 function writeOutput(ctx: BaseContext, message: string) {
     if (ctx.outputFileFD) {
-        fs.writeSync(ctx.outputFileFD, message + "\n");
+        try {
+            fs.writeSync(ctx.outputFileFD, message + "\n");
+        } catch (err) {
+            console.error('failed to write message to file', err);
+            console.log(message);
+        }
     } else {
         console.log(message);
     }

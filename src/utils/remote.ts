@@ -1,14 +1,13 @@
-import {ExecutionContext, FileRef, Script} from "../../types";
-import {exec} from "child_process";
+import {ExecutionContext, FileRef, Script, SshClient, SshConfig} from "../../types";
+import {ChildProcess, exec} from "child_process";
 import * as path from "path";
 import {log} from "../log";
 import {md5LocalFile, md5RemoteFile} from "./file";
+import * as NestedError from "nested-error-stacks";
 import * as fs from "fs-extra";
-import * as os from "os";
-import * as ssh2 from "ssh2";
-import {ConnectConfig} from "ssh2";
-import * as scp2 from "scp2";
 import {EventEmitter} from "events";
+import * as os from "os";
+import * as async from "async";
 
 export async function copyFile(ctx: ExecutionContext, script: Script, file: FileRef): Promise<void> {
     const destFile = path.join(ctx.options.workingPath, file.packagePath);
@@ -31,14 +30,7 @@ export async function copyFile(ctx: ExecutionContext, script: Script, file: File
             return;
         }
         log(ctx, script, 'COPY', `${file.fullPath} -> ${ctx.sshOptions.host}:${destFile}`);
-        return new Promise<void>((resolve, reject) => {
-            return ctx.scpClient.upload(file.fullPath, destFile, err => {
-                if (err) {
-                    return reject(err);
-                }
-                return resolve();
-            });
-        });
+        return uploadFile(ctx, script, file.fullPath, destFile);
     }
 }
 
@@ -68,24 +60,24 @@ function executeCommandLocal(ctx: ExecutionContext, script: Script, command: str
 
 function executeCommandRemote(ctx: ExecutionContext, script: Script, command: string): EventEmitter {
     const result = new EventEmitter();
-    ctx.client.exec(getFullCommand(ctx, script, command), (err, stream) => {
-        if (err) {
+    ctx.sshClient.exec(getFullCommand(ctx, script, command))
+        .then(stream => {
+            stream.on('close', code => {
+                result.emit('close', code);
+            });
+            stream.on('stdout', data => {
+                result.emit('stdout', data);
+            });
+            stream.on('stderr', data => {
+                result.emit('stderr', data);
+            });
+            stream.on('error', err => {
+                result.emit('error', err);
+            });
+        })
+        .catch(err => {
             return result.emit('error', err);
-        }
-        stream.on('close', (code, signal) => {
-            result.emit('close', code, signal);
         });
-        stream.on('data', data => {
-            result.emit('stdout', data);
-        });
-        stream.stderr.on('data', data => {
-            data = (data + '').replace('stdin: is not a tty\n', '');
-            if (data.length === 0) {
-                return;
-            }
-            result.emit('stderr', data);
-        });
-    });
     return result;
 }
 
@@ -95,7 +87,7 @@ function getFullCommand(ctx: ExecutionContext, script: Script, command: string) 
     result += 'set -eu\n';
     result += `cd "${scriptPath}"\n`;
     for (let include of ctx.includes) {
-        result += `source ${include}\n`;
+        result += `source ${path.join(ctx.options.workingPath, include)}\n`;
     }
     result += `export STAMPY_GROUPS="${ctx.groups.join(' ')}"\n`;
     result += `export STAMPY_ROLES="${ctx.roles.join(' ')}"\n`;
@@ -111,32 +103,233 @@ function getFullCommand(ctx: ExecutionContext, script: Script, command: string) 
     return result;
 }
 
-function getSshOptions(ctx: ExecutionContext): ConnectConfig {
-    const options = {
-        ...ctx.sshOptions
-    };
-    if (options.privateKey) {
-        let privateKeyFileName = <string>options.privateKey;
-        privateKeyFileName = privateKeyFileName.replace('~', os.homedir());
-        options.privateKey = fs.readFileSync(privateKeyFileName);
-    }
-    return options;
-}
+function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, remoteFile: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        const destDir = path.dirname(remoteFile);
+        ctx.sshClient.run(script, `mkdir -p "${destDir}"`)
+            .then(code => {
+                if (code !== 0) {
+                    return reject(new Error(`Could not create directories on remote machine: ${destDir} (code: ${code})`));
+                }
 
-export function getScpClient(ctx: ExecutionContext): Promise<scp2.Client> {
-    return Promise.resolve(new scp2.Client(getSshOptions(ctx)));
-}
-
-export function getSshClient(ctx: ExecutionContext): Promise<ssh2.Client> {
-    return new Promise<ssh2.Client>((resolve, reject) => {
-        const client = new ssh2.Client();
-        client.on('ready', () => {
-            resolve(client);
-        });
-        client.on('error', err => {
-            reject(err);
-        });
-        log(ctx, null, 'CONNECT', `username: ${ctx.sshOptions.username || '<no username specified>'}`);
-        client.connect(getSshOptions(ctx));
+                let scpCommand = getScpCommand(ctx.sshOptions, localFile, remoteFile);
+                const process = exec(scpCommand);
+                process.stdout.on('data', data => {
+                    ctx.log(script, 'STDOUT', data);
+                });
+                process.stderr.on('data', data => {
+                    ctx.log(script, 'STDERR', data);
+                });
+                process.on('close', code => {
+                    if (code === 0) {
+                        return resolve();
+                    }
+                    return reject(new Error(`Could not scp file using "${scpCommand}" (code: ${code})`));
+                })
+            })
+            .catch(err => {
+                return reject(new NestedError(`Could not scp file "${localFile}"`, err));
+            });
     });
+}
+
+function getScpCommand(sshConfig: SshConfig, localFile: string, remoteFile: string): string {
+    if (!sshConfig.host) {
+        throw new Error('host not set');
+    }
+    if (sshConfig.scpCommand) {
+        return sshConfig.scpCommand.replace(/\$\{(.*?)\}/g, (substr, variable) => {
+            switch (variable) {
+                case 'HOST':
+                    return sshConfig.host;
+                case 'SRC':
+                    return localFile;
+                case 'DEST':
+                    return remoteFile;
+                default:
+                    return process.env(variable);
+            }
+        });
+    } else {
+        let dest = '';
+        if (sshConfig.username) {
+            dest += `${sshConfig.username}@`;
+        }
+        dest += `${sshConfig.host}:${remoteFile}`;
+        const privateKeyOpt = sshConfig.privateKey
+            ? `-i "${sshConfig.privateKey.replace(/~/g, os.homedir())}" `
+            : '';
+        const sshpass = 'password' in sshConfig
+            ? `sshpass -p "${sshConfig.password}" `
+            : '';
+        return `${sshpass}scp ${privateKeyOpt}-q "${localFile}" "${dest}"`;
+    }
+}
+
+interface SshTask {
+    processEventEmitter: EventEmitter;
+    controlFlowEventEmitter: EventEmitter;
+    cmd: string;
+    code?: number;
+}
+
+class RemoteSshClient implements SshClient {
+    private ctx: ExecutionContext;
+    private sshProcess: ChildProcess;
+    private q: AsyncQueue<SshTask>;
+    private currentTask: SshTask;
+
+    constructor(ctx: ExecutionContext, sshProcess: ChildProcess) {
+        this.ctx = ctx;
+        this.sshProcess = sshProcess;
+
+        this.sshProcess.stdout.on('data', data => {
+            if (this.currentTask) {
+                const dataStr = '' + data;
+                const newDataStr = dataStr.replace(/STAMPY_SSH_TASK_COMPLETE: ([0-9]+)\n/, (substr, codeStr) => {
+                    this.currentTask.code = parseInt(codeStr);
+                    return '';
+                });
+
+                if (dataStr != newDataStr) {
+                    this.currentTask.processEventEmitter.emit('stdout', newDataStr);
+                    this.currentTask.controlFlowEventEmitter.emit('close');
+                } else {
+                    this.currentTask.processEventEmitter.emit('stdout', data);
+                }
+            } else {
+                ctx.log(null, 'STDOUT', data);
+            }
+        });
+
+        this.sshProcess.stderr.on('data', data => {
+            if (this.currentTask) {
+                data = (data + '').replace(/Connection to (.*?) closed by remote host.\r?\n?/, '');
+                data = (data + '').replace(/stdin: is not a tty\r?\n?/g, '');
+                if (data.length === 0) {
+                    return;
+                }
+                this.currentTask.processEventEmitter.emit('stderr', data);
+            }
+        });
+
+        this.sshProcess.on('close', code => {
+            if (this.currentTask) {
+                this.currentTask.code = code;
+            }
+            ctx.log(null, 'CLOSE', `ssh connection closed (code: ${code})`);
+            if (this.currentTask) {
+                this.currentTask.controlFlowEventEmitter.emit('close');
+            }
+        });
+
+        this.q = async.queue((task: SshTask, callback) => {
+            this.currentTask = task;
+            const chunk = `${task.cmd}\necho "STAMPY_SSH_TASK_COMPLETE: $?"\n`;
+            try {
+                sshProcess.stdin.write(chunk);
+            } catch (err) {
+                if (callback) {
+                    callback(new NestedError('could not write task', err));
+                }
+                callback = null;
+            }
+            task.controlFlowEventEmitter.on('close', () => {
+                if (callback) {
+                    callback();
+                }
+                callback = null;
+            });
+        });
+    }
+
+    end(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.sshProcess.stdin.write('exit\n');
+            this.sshProcess.kill();
+            setTimeout(() => {
+                resolve();
+            }, 100);
+        });
+    }
+
+    exec(cmd: string): Promise<NodeJS.EventEmitter> {
+        const processEventEmitter = new EventEmitter();
+        const task: SshTask = {
+            processEventEmitter,
+            cmd,
+            controlFlowEventEmitter: new EventEmitter()
+        };
+        this.q.push(task, err => {
+            if (err) {
+                processEventEmitter.emit('error', err);
+            }
+            processEventEmitter.emit('close', task.code);
+        });
+        return Promise.resolve(processEventEmitter);
+    }
+
+    run(script: Script, cmd: string): Promise<number> {
+        return new Promise<number>((resolve, reject) => {
+            this.exec(cmd)
+                .then(ee => {
+                    ee.on('stdout', data => {
+                        this.ctx.log(script, 'STDOUT', data);
+                    });
+                    ee.on('stderr', data => {
+                        this.ctx.log(script, 'STDERR', data);
+                    });
+                    ee.on('error', err => {
+                        return reject(err);
+                    });
+                    ee.on('close', code => {
+                        return resolve(code);
+                    });
+                })
+                .catch(err => {
+                    return reject(err);
+                });
+        });
+    }
+}
+
+export function getSshClient(ctx: ExecutionContext): Promise<SshClient> {
+    return new Promise<SshClient>((resolve, reject) => {
+        const sshCommand = getSshCommand(ctx.sshOptions);
+        log(ctx, null, 'CONNECT', sshCommand);
+        const sshProcess = exec(sshCommand);
+        resolve(new RemoteSshClient(ctx, sshProcess));
+    });
+}
+
+function getSshCommand(sshConfig: SshConfig): string {
+    if (!sshConfig.host) {
+        throw new Error('host not set');
+    }
+    if (sshConfig.sshCommand) {
+        return sshConfig.sshCommand.replace(/\$\{(.*?)\}/g, (substr, variable) => {
+            switch (variable) {
+                case 'HOST':
+                    return sshConfig.host;
+                default:
+                    return process.env[variable];
+            }
+        });
+    } else {
+        let connection = '';
+        if (sshConfig.username) {
+            connection += `${sshConfig.username}@`;
+        }
+        connection += `${sshConfig.host}`;
+        const timeoutOpt = 'readyTimeout' in sshConfig
+            ? `-o ConnectTimeout=${sshConfig.readyTimeout / 1000} `
+            : '';
+        const privateKeyOpt = sshConfig.privateKey
+            ? `-i "${sshConfig.privateKey.replace(/~/g, os.homedir())}" `
+            : '';
+        const sshpass = 'password' in sshConfig
+            ? `sshpass -p "${sshConfig.password}" `
+            : '';
+        return `${sshpass}ssh ${timeoutOpt}${privateKeyOpt}-q ${connection}`;
+    }
 }

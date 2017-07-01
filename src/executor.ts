@@ -5,9 +5,7 @@ import {calculateExecutionOrder} from "./execution-order";
 import * as rjson from "relaxed-json";
 import * as chalk from "chalk";
 import {log} from "./log";
-import * as NestedError from "nested-error-stacks";
-import {isUndefined} from "util";
-import {copyFile, executeCommand, getScpClient, getSshClient} from "./utils/remote";
+import {copyFile, executeCommand, getSshClient} from "./utils/remote";
 
 export async function execute(ctx: BaseContext): Promise<void> {
     const executionContexts = await getExecutionContexts(ctx);
@@ -23,18 +21,13 @@ export async function execute(ctx: BaseContext): Promise<void> {
         ctx.logColorHostFn = colorFnQueue.shift();
         try {
             if (!ctx.local) {
-                ctx.client = await getSshClient(ctx);
-                ctx.scpClient = await getScpClient(ctx);
-                ctx.scpClient.on('error', err => {
-                    throw new NestedError('scp error', err);
-                });
+                ctx.sshClient = await getSshClient(ctx);
             }
             ctx.scripts = await calculateExecutionOrder(ctx, ctx.scripts);
             await syncFiles(ctx);
             await executeScripts(ctx);
-            if (ctx.client) {
-                ctx.client.end();
-                ctx.scpClient.close();
+            if (ctx.sshClient) {
+                await ctx.sshClient.end();
             }
         } finally {
             colorFnQueue.push(ctx.logColorHostFn);
@@ -221,10 +214,9 @@ function reboot(ctx: ExecutionContext, script: Script, expr: any): Promise<void>
             reject(new Error(`could not execute reboot command "${ctx.options.rebootCommand}"`));
         });
         rebootProcess.on('close', code => {
-            if (code === 0 || isUndefined(code)) {
+            if (code === 255) {
                 setTimeout(async () => {
-                    ctx.client = await getSshClient(ctx);
-                    ctx.scpClient = await getScpClient(ctx);
+                    ctx.sshClient = await getSshClient(ctx);
                     return resolve();
                 }, expr.timeout * 1000);
             } else {

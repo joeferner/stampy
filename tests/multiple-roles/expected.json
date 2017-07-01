@@ -1,13 +1,14 @@
 {
   "lines": [
-    {"host":"stampy-host1","action":"CONNECT","script":"","data":"username: root"},
+    {"host":"stampy-host1","action":"CONNECT","script":"","data":"sshpass -p \"root\" ssh -q root@stampy-host1"},
     {"host":"stampy-host1","action":"COPY","script":"./role1.sh"},
     {"host":"stampy-host1","action":"COPY","script":"./start.sh"},
     {"host":"stampy-host1","action":"RUN","script":"./role1.sh","data":null},
     {"host":"stampy-host1","action":"STDOUT","script":"./role1.sh","data":"role1"},
     {"host":"stampy-host1","action":"STDOUT","script":"./role1.sh","data":"ROLES: "},
     {"host":"stampy-host1","action":"RUN","script":"./start.sh","data":null},
-    {"host":"stampy-host2","action":"CONNECT","script":"","data":"username: root"},
+    {"host":"stampy-host1","action":"CLOSE","script":"","data":"ssh connection closed (code: null)"},
+    {"host":"stampy-host2","action":"CONNECT","script":"","data":"sshpass -p \"root\" ssh -q root@stampy-host2"},
     {"host":"stampy-host2","action":"COPY","script":"./role2-dep.sh"},
     {"host":"stampy-host2","action":"COPY","script":"./role2.sh"},
     {"host":"stampy-host2","action":"COPY","script":"./start.sh"},
@@ -17,6 +18,7 @@
     {"host":"stampy-host2","action":"STDOUT","script":"./role2.sh","data":"role2"},
     {"host":"stampy-host2","action":"STDOUT","script":"./role2.sh","data":"ROLES: "},
     {"host":"stampy-host2","action":"RUN","script":"./start.sh","data":null},
+    {"host":"stampy-host2","action":"CLOSE","script":"","data":"ssh connection closed (code: null)"},
     {"host":"local","action":"DONE","script":"","data":null}
   ]
 }
