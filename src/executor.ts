@@ -6,6 +6,7 @@ import * as rjson from "relaxed-json";
 import * as chalk from "chalk";
 import {log} from "./log";
 import {copyFile, executeCommand, getSshClient} from "./utils/remote";
+import {performSubstitutions} from "./config";
 
 export async function execute(ctx: BaseContext): Promise<void> {
     const executionContexts = await getExecutionContexts(ctx);
@@ -72,6 +73,7 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
         ctx.exec = executeCommand.bind(null, ctx);
         ctx.log = log.bind(null, ctx);
         ctx.copyFile = copyFile.bind(null, ctx);
+        performSubstitutions(ctx, ctx);
     }
     return executionContexts;
 }

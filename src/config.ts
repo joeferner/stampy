@@ -1,6 +1,6 @@
 import * as yaml from "js-yaml";
 import * as fs from "fs-extra";
-import {Config, Host} from "../types";
+import {BaseContext, Config, Host} from "../types";
 import * as path from "path";
 import * as _ from "lodash";
 
@@ -57,4 +57,29 @@ function transformHostsToRoles(hosts): { [role: string]: Host } {
         }
     }
     return results;
+}
+
+export function performSubstitutions(ctx: BaseContext, obj: any) {
+    if (typeof obj !== 'object') {
+        return;
+    }
+
+    for (let key of Object.keys(obj)) {
+        let value = obj[key];
+        if (!value) {
+            continue;
+        }
+        if (typeof value === 'string') {
+            obj[key] = value.replace(/\$\{(.*?)\}/g, (substr, variable) => {
+                try {
+                    const f = new Function('ctx', `return ${variable}`);
+                    return f(ctx);
+                } catch (e) {
+                    return substr;
+                }
+            });
+        } else {
+            performSubstitutions(ctx, value);
+        }
+    }
 }

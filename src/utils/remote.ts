@@ -106,13 +106,13 @@ function getFullCommand(ctx: ExecutionContext, script: Script, command: string) 
 function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, remoteFile: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const destDir = path.dirname(remoteFile);
+        let scpCommand = getScpCommand(ctx.host, ctx.sshOptions, localFile, remoteFile);
         ctx.sshClient.run(script, `mkdir -p "${destDir}"`)
             .then(code => {
                 if (code !== 0) {
                     return reject(new Error(`Could not create directories on remote machine: ${destDir} (code: ${code})`));
                 }
 
-                let scpCommand = getScpCommand(ctx.host, ctx.sshOptions, localFile, remoteFile);
                 const process = exec(scpCommand);
                 process.stdout.on('data', data => {
                     ctx.log(script, 'STDOUT', data);
@@ -128,7 +128,7 @@ function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, re
                 })
             })
             .catch(err => {
-                return reject(new NestedError(`Could not scp file "${localFile}"`, err));
+                return reject(new NestedError(`Could not scp file using "${scpCommand}"`, err));
             });
     });
 }
@@ -140,14 +140,12 @@ function getScpCommand(host: string, sshConfig: SshConfig, localFile: string, re
     if (sshConfig.scpCommand) {
         return sshConfig.scpCommand.replace(/\$\{(.*?)\}/g, (substr, variable) => {
             switch (variable) {
-                case 'HOST':
-                    return host;
                 case 'SRC':
                     return localFile;
                 case 'DEST':
                     return remoteFile;
                 default:
-                    return process.env(variable);
+                    return substr;
             }
         });
     } else {
@@ -307,14 +305,7 @@ function getSshCommand(host: string, sshConfig: SshConfig): string {
         throw new Error('host not set');
     }
     if (sshConfig.sshCommand) {
-        return sshConfig.sshCommand.replace(/\$\{(.*?)\}/g, (substr, variable) => {
-            switch (variable) {
-                case 'HOST':
-                    return host;
-                default:
-                    return process.env[variable];
-            }
-        });
+        return sshConfig.sshCommand;
     } else {
         let connection = '';
         if (sshConfig.username) {

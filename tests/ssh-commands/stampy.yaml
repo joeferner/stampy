@@ -1,0 +1,19 @@
+
+defaults:
+  compareMd5sOnCopy: false
+  ssh:
+    sshCommand: sshpass -p "${ctx.sshOptions.password}" ssh -q ${ctx.sshOptions.username}@${ctx.host}
+    scpCommand: sshpass -p "${ctx.sshOptions.password}" scp ${SRC} ${ctx.sshOptions.username}@${ctx.host}:${DEST}
+    username: root
+    password: root
+
+commands:
+  default:
+    scripts:
+    - ./start.sh
+
+roles:
+  all:
+    hosts:
+    - localhost
+    - stampy-host1
