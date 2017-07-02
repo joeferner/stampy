@@ -49,10 +49,10 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
             } else {
                 results[host] = {
                     ...ctx,
+                    host,
                     local: false,
                     sshOptions: {
-                        ...ctx.config.defaults.ssh,
-                        host
+                        ...ctx.config.defaults.ssh
                     },
                     options: {
                         ...ctx.config.defaults
@@ -306,8 +306,8 @@ async function executeRunLines(ctx: ExecutionContext, script: Script): Promise<F
     return results;
 }
 
-function isLocal(ctx: ExecutionContext) {
-    return ctx.sshOptions.host === 'localhost' || ctx.sshOptions.host === '127.0.0.1';
+function isLocal(ctx: ExecutionContext): boolean {
+    return ctx.host === 'localhost' || ctx.host === '127.0.0.1';
 }
 
 function shouldRoleRun(ctx: BaseContext, roleName: string) {

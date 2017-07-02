@@ -25,7 +25,6 @@ export interface Host {
 }
 
 export interface SshConfig {
-    host?: string;
     username?: string;
     password?: string;
     readyTimeout?: number;
@@ -122,6 +121,7 @@ export interface SshClient {
 
 export interface ExecutionContext extends BaseContext {
     local: boolean;
+    host?: string;
     sshOptions: SshConfig;
     sshClient?: SshClient;
     roles: string[];

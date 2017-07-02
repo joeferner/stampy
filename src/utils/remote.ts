@@ -26,10 +26,10 @@ export async function copyFile(ctx: ExecutionContext, script: Script, file: File
     } else {
         const destFileMd5 = ctx.options.compareMd5sOnCopy ? await md5RemoteFile(ctx, script, destFile) : null;
         if (ctx.options.compareMd5sOnCopy && srcFileMd5 === destFileMd5) {
-            log(ctx, script, 'SKIP', `MD5s match: ${file.fullPath} -> ${ctx.sshOptions.host}:${destFile}`);
+            log(ctx, script, 'SKIP', `MD5s match: ${file.fullPath} -> ${ctx.host}:${destFile}`);
             return;
         }
-        log(ctx, script, 'COPY', `${file.fullPath} -> ${ctx.sshOptions.host}:${destFile}`);
+        log(ctx, script, 'COPY', `${file.fullPath} -> ${ctx.host}:${destFile}`);
         return uploadFile(ctx, script, file.fullPath, destFile);
     }
 }
@@ -112,7 +112,7 @@ function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, re
                     return reject(new Error(`Could not create directories on remote machine: ${destDir} (code: ${code})`));
                 }
 
-                let scpCommand = getScpCommand(ctx.sshOptions, localFile, remoteFile);
+                let scpCommand = getScpCommand(ctx.host, ctx.sshOptions, localFile, remoteFile);
                 const process = exec(scpCommand);
                 process.stdout.on('data', data => {
                     ctx.log(script, 'STDOUT', data);
@@ -133,15 +133,15 @@ function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, re
     });
 }
 
-function getScpCommand(sshConfig: SshConfig, localFile: string, remoteFile: string): string {
-    if (!sshConfig.host) {
+function getScpCommand(host: string, sshConfig: SshConfig, localFile: string, remoteFile: string): string {
+    if (!host) {
         throw new Error('host not set');
     }
     if (sshConfig.scpCommand) {
         return sshConfig.scpCommand.replace(/\$\{(.*?)\}/g, (substr, variable) => {
             switch (variable) {
                 case 'HOST':
-                    return sshConfig.host;
+                    return host;
                 case 'SRC':
                     return localFile;
                 case 'DEST':
@@ -155,7 +155,7 @@ function getScpCommand(sshConfig: SshConfig, localFile: string, remoteFile: stri
         if (sshConfig.username) {
             dest += `${sshConfig.username}@`;
         }
-        dest += `${sshConfig.host}:${remoteFile}`;
+        dest += `${host}:${remoteFile}`;
         const privateKeyOpt = sshConfig.privateKey
             ? `-i "${sshConfig.privateKey.replace(/~/g, os.homedir())}" `
             : '';
@@ -295,22 +295,22 @@ class RemoteSshClient implements SshClient {
 
 export function getSshClient(ctx: ExecutionContext): Promise<SshClient> {
     return new Promise<SshClient>((resolve, reject) => {
-        const sshCommand = getSshCommand(ctx.sshOptions);
+        const sshCommand = getSshCommand(ctx.host, ctx.sshOptions);
         log(ctx, null, 'CONNECT', sshCommand);
         const sshProcess = exec(sshCommand);
         resolve(new RemoteSshClient(ctx, sshProcess));
     });
 }
 
-function getSshCommand(sshConfig: SshConfig): string {
-    if (!sshConfig.host) {
+function getSshCommand(host: string, sshConfig: SshConfig): string {
+    if (!host) {
         throw new Error('host not set');
     }
     if (sshConfig.sshCommand) {
         return sshConfig.sshCommand.replace(/\$\{(.*?)\}/g, (substr, variable) => {
             switch (variable) {
                 case 'HOST':
-                    return sshConfig.host;
+                    return host;
                 default:
                     return process.env[variable];
             }
@@ -320,7 +320,7 @@ function getSshCommand(sshConfig: SshConfig): string {
         if (sshConfig.username) {
             connection += `${sshConfig.username}@`;
         }
-        connection += `${sshConfig.host}`;
+        connection += `${host}`;
         const timeoutOpt = 'readyTimeout' in sshConfig
             ? `-o ConnectTimeout=${sshConfig.readyTimeout / 1000} `
             : '';

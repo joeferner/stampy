@@ -18,7 +18,7 @@ export function log(ctx: BaseContext, script: Script | string, action: LogAction
         return;
     }
 
-    const host = (<ExecutionContext>ctx).sshOptions ? (<ExecutionContext>ctx).sshOptions.host : 'local';
+    const host = (<ExecutionContext>ctx).host || 'local';
     const scriptString = typeof script === 'string'
         ? script
         : script
