@@ -4,7 +4,6 @@ import {BaseContext, Config, Host} from "../types";
 import * as path from "path";
 import * as _ from "lodash";
 import {replaceAsync} from "./utils/string";
-import * as NestedError from "nested-error-stacks";
 
 const DEFAULT_CONFIG = './stampy.yaml';
 
@@ -29,6 +28,7 @@ export async function load(file: string, groups: string[]): Promise<Config> {
 
     const fileContents = await fs.readFile(file, 'utf8');
     const config: Config = yaml.safeLoad(fileContents);
+    config.groups = config.groups || {};
     if (config.hosts) {
         config.roles = transformHostsToRoles(config.hosts);
     }

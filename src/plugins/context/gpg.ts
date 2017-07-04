@@ -5,7 +5,7 @@ import * as NestedError from "nested-error-stacks";
 import * as passwordPrompt from "password-prompt";
 import * as path from "path";
 import * as commandLineCommands from "command-line-commands";
-import * as commandLineArgs from "command-line-args";
+import {commandLineParse} from "../../utils/command-line";
 
 const DEFAULT_FILE_NAME = 'stampy.gpg';
 
@@ -18,22 +18,22 @@ class GpgCommandPlugin implements CommandPlugin {
     run(ctx: BaseContext, args: string[]): Promise<void> {
         const {command, argv} = GpgCommandPlugin.getCommand(args);
         switch (command) {
-            case 'add':
-                return this.add(ctx, argv);
+            case 'set':
+                return this.set(ctx, argv);
             case 'keys':
                 return this.keys(ctx, argv);
             case 'remove':
                 return this.remove(ctx, argv);
             default:
-                GpgCommandPlugin.printUsage();
+                console.error(`Invalid command "${args[0]}"`);
                 process.exit(-1);
                 break;
         }
         return Promise.resolve();
     }
 
-    private async add(ctx: BaseContext, args: string[]): Promise<void> {
-        const options = commandLineArgs([
+    private async set(ctx: BaseContext, args: string[]): Promise<void> {
+        const options = commandLineParse([
             {name: 'key', alias: 'k', type: String},
             {name: 'value', alias: 'v'}
         ], {argv: args});
@@ -55,7 +55,7 @@ class GpgCommandPlugin implements CommandPlugin {
     }
 
     private async remove(ctx: BaseContext, args: string[]): Promise<void> {
-        const options = commandLineArgs([
+        const options = commandLineParse([
             {name: 'key', alias: 'k', type: String}
         ], {argv: args});
         if (!options.key) {
@@ -65,13 +65,18 @@ class GpgCommandPlugin implements CommandPlugin {
         }
 
         const obj = await getDecryptedObject(ctx);
+        if (!(options.key in obj)) {
+            console.error(`key "${options.key}" not found`);
+            process.exit(-1);
+            return;
+        }
         delete obj[options.key];
         await writeEncryptedObject(ctx, obj);
         console.log('key removed');
     }
 
     private async keys(ctx: BaseContext, args: string[]): Promise<void> {
-        const options = commandLineArgs([], {argv: args});
+        const options = commandLineParse([], {argv: args});
 
         const obj = await getDecryptedObject(ctx);
         for (let key of Object.keys(obj)) {
@@ -81,7 +86,7 @@ class GpgCommandPlugin implements CommandPlugin {
 
     private static getCommand(args: string[]) {
         try {
-            const {command, argv} = commandLineCommands(['add', 'remove', 'keys'], args);
+            const {command, argv} = commandLineCommands(['set', 'remove', 'keys'], args);
             return {command, argv};
         } catch (err) {
             return {command: null, argv: null};

@@ -19,41 +19,31 @@ import {ExistsRunIfPlugin} from "./plugins/runIf/exists";
 import {CmdRunIfPlugin} from "./plugins/runIf/cmd";
 import {GpgContextPlugin} from "./plugins/context/gpg";
 import {DefaultCommandPlugin} from "./plugins/command/DefaultCommandPlugin";
+import {commandLineParse} from "./utils/command-line";
 
 export async function run(argv: string[]): Promise<void> {
-    const args: any = {
-        dryRun: false,
+    const defaults: any = {
+        'dry-run': false,
         group: [],
         outputFormat: 'normal',
         args: []
     };
 
     argv = argv.slice(2);
-    for (let i = 0; i < argv.length; i++) {
-        const arg = argv[i];
-        if (arg === '-c' || arg === '--config') {
-            i++;
-            args.config = argv[i];
-        } else if (arg === '-r' || arg === '--role') {
-            i++;
-            args.role = args.role || [];
-            args.role.push(argv[i]);
-        } else if (arg === '-o' || arg === '--output') {
-            i++;
-            args.output = argv[i];
-        } else if (arg === '-g' || arg === '--group') {
-            i++;
-            args.group.push(argv[i]);
-        } else if (arg === '-dry-run') {
-            args.dryRun = true;
-        } else if (arg === '-outputFormat') {
-            i++;
-            args.outputFormat = argv[i];
-        } else {
-            args.args = argv.slice(i);
-            break;
-        }
-    }
+    const parsedArgs = commandLineParse([
+        {name: 'config', alias: 'c', type: String},
+        {name: 'role', alias: 'r', multiple: true, type: String},
+        {name: 'output', alias: 'o', type: String},
+        {name: 'group', alias: 'g', multiple: true, type: String},
+        {name: 'dry-run', type: Boolean},
+        {name: 'output-format', type: String}
+    ], {argv, partial: true});
+    const args = {
+        ...defaults,
+        ...parsedArgs
+    };
+    args.args = args._unknown;
+    delete args._unknown;
 
     let outputFileFD: number = null;
     if (args.output) {
@@ -69,10 +59,10 @@ export async function run(argv: string[]): Promise<void> {
         commandLineArgs: args,
         rolesToRun: args.role,
         groups: args.group,
-        outputFormat: args.outputFormat,
+        outputFormat: args['output-format'],
         outputFileFD: outputFileFD,
         log: null,
-        dryRun: args.dryRun,
+        dryRun: args['dry-run'],
         pluginData: {},
         commands: []
     };
