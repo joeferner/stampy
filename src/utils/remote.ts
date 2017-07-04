@@ -89,6 +89,10 @@ function getFullCommand(ctx: ExecutionContext, script: Script, command: string) 
     for (let include of ctx.includes) {
         result += `source ${path.join(ctx.options.workingPath, include)}\n`;
     }
+    for (let name in ctx.options.env) {
+        const value = ctx.options.env[name];
+        result += `export ${name}=${value}\n`;
+    }
     result += `export STAMPY_GROUPS="${ctx.groups.join(' ')}"\n`;
     result += `export STAMPY_ROLES="${ctx.roles.join(' ')}"\n`;
     result += `function stampy_skip { echo 'STAMPY: {"action": "SKIP"}'; }\n`;
@@ -115,10 +119,10 @@ function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, re
 
                 const process = exec(scpCommand);
                 process.stdout.on('data', data => {
-                    ctx.log(script, 'STDOUT', data);
+                    ctx.logWithScript(script, 'STDOUT', data);
                 });
                 process.stderr.on('data', data => {
-                    ctx.log(script, 'STDERR', data);
+                    ctx.logWithScript(script, 'STDERR', data);
                 });
                 process.on('close', code => {
                     if (code === 0) {
@@ -196,7 +200,7 @@ class RemoteSshClient implements SshClient {
                     this.currentTask.processEventEmitter.emit('stdout', data);
                 }
             } else {
-                ctx.log(null, 'STDOUT', data);
+                ctx.logWithScript(null, 'STDOUT', data);
             }
         });
 
@@ -215,7 +219,7 @@ class RemoteSshClient implements SshClient {
             if (this.currentTask) {
                 this.currentTask.code = code;
             }
-            ctx.log(null, 'CLOSE', `ssh connection closed (code: ${code})`);
+            ctx.logWithScript(null, 'CLOSE', `ssh connection closed (code: ${code})`);
             if (this.currentTask) {
                 this.currentTask.controlFlowEventEmitter.emit('close');
             }
@@ -272,10 +276,10 @@ class RemoteSshClient implements SshClient {
             this.exec(cmd)
                 .then(ee => {
                     ee.on('stdout', data => {
-                        this.ctx.log(script, 'STDOUT', data);
+                        this.ctx.logWithScript(script, 'STDOUT', data);
                     });
                     ee.on('stderr', data => {
-                        this.ctx.log(script, 'STDERR', data);
+                        this.ctx.logWithScript(script, 'STDERR', data);
                     });
                     ee.on('error', err => {
                         return reject(err);

@@ -3,6 +3,8 @@ import * as fs from "fs-extra";
 import {BaseContext, Config, Host} from "../types";
 import * as path from "path";
 import * as _ from "lodash";
+import {replaceAsync} from "./utils/string";
+import * as NestedError from "nested-error-stacks";
 
 const DEFAULT_CONFIG = './stampy.yaml';
 
@@ -59,7 +61,7 @@ function transformHostsToRoles(hosts): { [role: string]: Host } {
     return results;
 }
 
-export function performSubstitutions(ctx: BaseContext, obj: any) {
+export async function performSubstitutions(ctx: BaseContext, obj: any): Promise<void> {
     if (typeof obj !== 'object') {
         return;
     }
@@ -70,16 +72,18 @@ export function performSubstitutions(ctx: BaseContext, obj: any) {
             continue;
         }
         if (typeof value === 'string') {
-            obj[key] = value.replace(/\$\{(.*?)\}/g, (substr, variable) => {
+            obj[key] = await replaceAsync(value, /\$\{(.*?)\}/g, (substr, variable) => {
                 try {
                     const f = new Function('ctx', `return ${variable}`);
                     return f(ctx);
-                } catch (e) {
+                } catch (err) {
                     return substr;
+                    // TODO should we throw this error and fix ssh plugins?
+                    // throw new NestedError(`Failed while expanding substitution "${substr}"`, err);
                 }
             });
         } else {
-            performSubstitutions(ctx, value);
+            await performSubstitutions(ctx, value);
         }
     }
 }

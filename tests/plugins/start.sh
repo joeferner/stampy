@@ -4,4 +4,5 @@
 # require my-require-plugin require-arg1
 # require my-node-module-require-plugin require-arg1
 
+echo "MY_CONTEXT_PLUGIN_VALUE: ${MY_CONTEXT_PLUGIN_VALUE}"
 echo "done"

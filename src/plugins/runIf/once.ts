@@ -16,10 +16,10 @@ export class OnceRunIfPlugin extends ExprRunIfPlugin {
         return new Promise<void>((resolve, reject) => {
             ctx.exec(script, `touch "${remoteTestFile}"`)
                 .on('stdout', data => {
-                    ctx.log(script, 'STDOUT', data);
+                    ctx.logWithScript(script, 'STDOUT', data);
                 })
                 .on('stderr', data => {
-                    ctx.log(script, 'STDERR', data);
+                    ctx.logWithScript(script, 'STDERR', data);
                     reject(new Error('received message from stderr'));
                 })
                 .on('close', code => {

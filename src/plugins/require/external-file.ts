@@ -1,10 +1,10 @@
-import {ExpandRequiresResults, RequirePlugin, RequirePluginContext} from "../../../types";
+import {BaseContext, ExpandRequiresResults, RequirePlugin} from "../../../types";
 import * as path from "path";
 import * as glob from "glob";
 import {relative} from "../../utils/file";
 
 export class ExternalFileRequirePlugin implements RequirePlugin {
-    async expandRequires(ctx: RequirePluginContext, args: string[]): Promise<ExpandRequiresResults> {
+    async expandRequires(ctx: BaseContext, args: string[]): Promise<ExpandRequiresResults> {
         if (args.length !== 2) {
             throw new Error(`"external-file" expected 2 arguments, found ${args.length}`);
         }
@@ -29,7 +29,7 @@ export class ExternalFileRequirePlugin implements RequirePlugin {
         };
     }
 
-    private static getFromFiles(ctx: RequirePluginContext, pattern: string): Promise<string[]> {
+    private static getFromFiles(ctx: BaseContext, pattern: string): Promise<string[]> {
         return new Promise((resolve, reject) => {
             const globOptions = {
                 cwd: ctx.cwd,

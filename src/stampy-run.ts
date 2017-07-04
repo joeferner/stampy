@@ -1,15 +1,12 @@
-import * as commander from "commander";
 import * as Config from "./config";
 import {getConfig} from "./config";
-import {BaseContext, Plugin, PLUGIN_TYPES, Plugins, RequirePluginContext, Script, ScriptRef} from "../types";
+import {BaseContext, ContextPlugin, Plugin, PLUGIN_TYPES, Plugins} from "../types";
 import {ScriptsRequirePlugin} from "./plugins/require/scripts";
 import {LocalScriptsRunPlugin} from "./plugins/run/local-scripts";
 import {EjsRunPlugin} from "./plugins/run/ejs";
 import * as _ from "lodash";
 import * as fs from "fs-extra";
 import * as path from "path";
-import {loadScripts} from "./script-loader";
-import {execute} from "./executor";
 import {HasRolesRunIfPlugin} from "./plugins/runIf/has-roles";
 import {ExprRunIfPlugin} from "./plugins/runIf/expr";
 import {FilesRequirePlugin} from "./plugins/require/files";
@@ -20,18 +17,43 @@ import {OnceRunIfPlugin} from "./plugins/runIf/once";
 import {ExternalFileRequirePlugin} from "./plugins/require/external-file";
 import {ExistsRunIfPlugin} from "./plugins/runIf/exists";
 import {CmdRunIfPlugin} from "./plugins/runIf/cmd";
+import {GpgContextPlugin} from "./plugins/context/gpg";
+import {DefaultCommandPlugin} from "./plugins/command/DefaultCommandPlugin";
 
 export async function run(argv: string[]): Promise<void> {
-    const args: any = commander
-        .version('0.1.0')
-        .usage('[options] <file|commands ...>')
-        .option('-c, --config <file>', 'Configuration file')
-        .option('-r, --role <role>', 'Role to run', collect, null)
-        .option('-o, --output <file>', 'Output file')
-        .option('-g, --group <name>', 'Groups to run', collect, [])
-        .option('--dry-run', 'Perform a dry run, this will not run any of the scripts')
-        .option('--outputFormat [normal|json]', 'Specify how the output should look', 'normal')
-        .parse(argv);
+    const args: any = {
+        dryRun: false,
+        group: [],
+        outputFormat: 'normal',
+        args: []
+    };
+
+    argv = argv.slice(2);
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i];
+        if (arg === '-c' || arg === '--config') {
+            i++;
+            args.config = argv[i];
+        } else if (arg === '-r' || arg === '--role') {
+            i++;
+            args.role = args.role || [];
+            args.role.push(argv[i]);
+        } else if (arg === '-o' || arg === '--output') {
+            i++;
+            args.output = argv[i];
+        } else if (arg === '-g' || arg === '--group') {
+            i++;
+            args.group.push(argv[i]);
+        } else if (arg === '-dry-run') {
+            args.dryRun = true;
+        } else if (arg === '-outputFormat') {
+            i++;
+            args.outputFormat = argv[i];
+        } else {
+            args.args = argv.slice(i);
+            break;
+        }
+    }
 
     let outputFileFD: number = null;
     if (args.output) {
@@ -51,18 +73,21 @@ export async function run(argv: string[]): Promise<void> {
         outputFileFD: outputFileFD,
         log: null,
         dryRun: args.dryRun,
-        pluginData: {}
+        pluginData: {},
+        commands: []
     };
 
     ctx.log = log.bind(null, ctx, null);
     ctx.config = await Config.load(ctx.configFile, ctx.groups);
     await addIncludesDirectory(ctx);
     await validate(ctx);
-    const initialScripts = await findInitialScripts(ctx);
     ctx.plugins = await loadPlugins(ctx);
-    ctx.scripts = await loadScripts(ctx, initialScripts);
-    validateScripts(ctx.scripts);
-    await execute(ctx);
+    await applyContextPlugins(ctx.plugins.context, ctx);
+    const remainingArgs = await loadCommand(ctx);
+
+    ctx.command.commandPlugin.run
+        ? await ctx.command.commandPlugin.run(ctx, remainingArgs)
+        : DefaultCommandPlugin.runStatic(ctx, remainingArgs);
 
     if (ctx.outputFileFD) {
         fs.closeSync(ctx.outputFileFD);
@@ -110,26 +135,6 @@ async function validate(ctx: BaseContext): Promise<void> {
     validateRolesToRun(ctx, ctx.rolesToRun);
 }
 
-function validateScripts(scripts: Script[]) {
-    for (let script of scripts) {
-        validateScriptCircularDependencies([script]);
-        if (script.requires) {
-            validateScripts(script.requires);
-        }
-    }
-}
-
-function validateScriptCircularDependencies(scriptPath: Script[]) {
-    for (let child of scriptPath[scriptPath.length - 1].requires) {
-        for (let s of scriptPath) {
-            if (s === child) {
-                throw new Error(`Circular dependency detected from script "${s.path.packagePath}"`);
-            }
-        }
-        validateScriptCircularDependencies(scriptPath.concat([child]));
-    }
-}
-
 function validateRolesToRun(ctx: BaseContext, rolesToRun: string[]) {
     if (!rolesToRun) {
         return;
@@ -141,7 +146,7 @@ function validateRolesToRun(ctx: BaseContext, rolesToRun: string[]) {
     }
 }
 
-async function findInitialScripts(ctx: BaseContext): Promise<ScriptRef[]> {
+async function loadCommand(ctx: BaseContext): Promise<string[]> {
     let args = ctx.commandLineArgs.args;
     if (args.length === 0) {
         if (ctx.config.commands['default']) {
@@ -151,40 +156,33 @@ async function findInitialScripts(ctx: BaseContext): Promise<ScriptRef[]> {
         }
     }
 
-    const scripts = await Promise.all(
-        args.map(arg => {
-            const cmd = ctx.config.commands[arg];
-            if (!cmd) {
-                return Promise.resolve([{
-                    basePath: ctx.cwd,
-                    requirePluginName: 'script',
-                    args: [arg]
-                }]);
-            }
-
-            return Promise.resolve(cmd.scripts.map(c => {
-                return {
-                    basePath: ctx.cwd,
-                    requirePluginName: 'script',
-                    args: [c]
-                }
-            }));
-        })
-    );
-
-    const includes = (ctx.config.includes || []).map(include => {
-        return {
-            basePath: ctx.cwd,
-            requirePluginName: 'file',
-            args: [include]
+    ctx.command = ctx.config.commands[args[0]];
+    if (ctx.command) {
+        args = args.slice(1);
+    } else {
+        ctx.command = {
+            scripts: []
         };
-    });
+    }
 
-    return _.flatten(scripts).concat(includes);
+    if (!ctx.command.commandPlugin) {
+        ctx.command.commandPlugin = new DefaultCommandPlugin();
+    } else if (typeof ctx.command.commandPlugin === 'string') {
+        const commandPlugin = ctx.plugins.command[ctx.command.commandPlugin];
+        if (!commandPlugin) {
+            throw new Error(`Could not find command plugin "${ctx.command.commandPlugin}"`);
+        }
+        ctx.command.commandPlugin = commandPlugin;
+    }
+
+    return args;
 }
 
-async function loadPlugins(ctx: RequirePluginContext): Promise<Plugins> {
+async function loadPlugins(ctx: BaseContext): Promise<Plugins> {
     const plugins: Plugins = {
+        context: {
+            gpg: new GpgContextPlugin()
+        },
         require: {
             scripts: new ScriptsRequirePlugin(),
             script: new ScriptsRequirePlugin(),
@@ -204,6 +202,9 @@ async function loadPlugins(ctx: RequirePluginContext): Promise<Plugins> {
             'local-script': new LocalScriptsRunPlugin(),
             'local-scripts': new LocalScriptsRunPlugin(),
             ejs: new EjsRunPlugin()
+        },
+        'command': {
+            'default': new DefaultCommandPlugin()
         }
     };
 
@@ -213,11 +214,22 @@ async function loadPlugins(ctx: RequirePluginContext): Promise<Plugins> {
     return Promise.resolve(plugins);
 }
 
-async function loadNodeModulePlugins(ctx: RequirePluginContext): Promise<Plugins> {
+async function applyContextPlugins(contextPlugins: { [name: string]: ContextPlugin }, ctx: BaseContext) {
+    for (let contextPluginName in contextPlugins) {
+        const contextPlugin = contextPlugins[contextPluginName];
+        if (contextPlugin.applyToBaseContext) {
+            await contextPlugin.applyToBaseContext(ctx);
+        }
+    }
+}
+
+async function loadNodeModulePlugins(ctx: BaseContext): Promise<Plugins> {
     const results: Plugins = {
+        context: {},
         require: {},
         'run-if': {},
-        run: {}
+        run: {},
+        command: {}
     };
     const packageJsonFiles = await getPackageJsonFiles();
     for (let packageJsonFile of packageJsonFiles) {
@@ -251,11 +263,13 @@ async function loadNodeModulePlugins(ctx: RequirePluginContext): Promise<Plugins
     }
 }
 
-async function loadConfigPlugins(ctx: RequirePluginContext): Promise<Plugins> {
+async function loadConfigPlugins(ctx: BaseContext): Promise<Plugins> {
     const results: Plugins = {
+        context: {},
         require: {},
         'run-if': {},
-        run: {}
+        run: {},
+        command: {}
     };
     for (let group in ctx.config.plugins || {}) {
         for (let name in ctx.config.plugins[group]) {
@@ -265,7 +279,7 @@ async function loadConfigPlugins(ctx: RequirePluginContext): Promise<Plugins> {
     return results;
 }
 
-async function loadPlugin(ctx: RequirePluginContext, fileName: string): Promise<Plugin> {
+async function loadPlugin(ctx: BaseContext, fileName: string): Promise<Plugin> {
     const fullFileName = path.resolve(ctx.cwd, fileName);
     const Plugin = require(fullFileName);
     try {

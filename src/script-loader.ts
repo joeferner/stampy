@@ -1,4 +1,4 @@
-import {FileRef, PLUGIN_TYPES, RequirePluginContext, Script, ScriptRef, StampyLine} from "../types";
+import {BaseContext, FileRef, PLUGIN_TYPES, Script, ScriptRef, StampyLine} from "../types";
 import * as _ from "lodash";
 import * as fs from "fs-extra";
 import * as path from "path";
@@ -6,7 +6,7 @@ import * as mapSeries from "promise-map-series";
 
 export type LoadedScripts = { [fullPath: string]: Script };
 
-export function loadScripts(ctx: RequirePluginContext, scriptRefs: ScriptRef[], loadedScripts?: LoadedScripts): Promise<Script[]> {
+export function loadScripts(ctx: BaseContext, scriptRefs: ScriptRef[], loadedScripts?: LoadedScripts): Promise<Script[]> {
     loadedScripts = loadedScripts || {};
     return mapSeries(
         scriptRefs,
@@ -18,7 +18,7 @@ export function loadScripts(ctx: RequirePluginContext, scriptRefs: ScriptRef[], 
     });
 }
 
-async function expandScripts(ctx: RequirePluginContext, scriptRef: ScriptRef, loadedScripts: LoadedScripts): Promise<Script[]> {
+async function expandScripts(ctx: BaseContext, scriptRef: ScriptRef, loadedScripts: LoadedScripts): Promise<Script[]> {
     const requirePlugin = ctx.plugins.require[scriptRef.requirePluginName];
     if (!requirePlugin) {
         throw new Error(`Could not find require plugin "${scriptRef.requirePluginName}"`);
@@ -29,7 +29,7 @@ async function expandScripts(ctx: RequirePluginContext, scriptRef: ScriptRef, lo
     return loadScriptFiles(ctx, scriptRef, results.scripts, loadedScripts);
 }
 
-function loadScriptFiles(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, files: FileRef[], loadedScripts: LoadedScripts): Promise<Script[]> {
+function loadScriptFiles(ctx: BaseContext, sourceScriptRef: ScriptRef, files: FileRef[], loadedScripts: LoadedScripts): Promise<Script[]> {
     return mapSeries(
         files || [],
         f => loadScriptFile(ctx, sourceScriptRef, f, loadedScripts)
@@ -38,7 +38,7 @@ function loadScriptFiles(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, 
     });
 }
 
-async function loadScriptFile(ctx: RequirePluginContext, sourceScriptRef: ScriptRef, file: FileRef, loadedScripts: LoadedScripts): Promise<Script> {
+async function loadScriptFile(ctx: BaseContext, sourceScriptRef: ScriptRef, file: FileRef, loadedScripts: LoadedScripts): Promise<Script> {
     if (loadedScripts[file.packagePath]) {
         return loadedScripts[file.packagePath];
     }

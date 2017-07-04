@@ -1,0 +1,21 @@
+
+defaults:
+  compareMd5sOnCopy: false
+  ssh:
+    username: root
+    password: root
+  gpg:
+    password: secret
+  env:
+    MY_GPG_VALUE: ${ctx.gpg('key1')}
+
+commands:
+  default:
+    scripts:
+    - ./start.sh
+
+roles:
+  all:
+    hosts:
+    - localhost
+    - stampy-host1

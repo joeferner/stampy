@@ -1,6 +1,7 @@
 import EventEmitter = NodeJS.EventEmitter;
 
 export const PLUGIN_TYPES = [
+    'context',
     'require',
     'run-if',
     'run-if!',
@@ -16,7 +17,8 @@ export interface FileRef {
 
 export interface Command {
     description?: string;
-    scripts: string[]
+    scripts: string[];
+    commandPlugin?: string | CommandPlugin;
 }
 
 export interface Host {
@@ -39,14 +41,17 @@ export interface HostOptions {
     sudo: boolean;
     compareMd5sOnCopy: boolean;
     workingPath: string;
+    env: { [name: string]: string };
 }
 
 export interface Config {
     defaults: HostOptions;
     plugins?: {
+        context: { [name: string]: string };
         require: { [name: string]: string };
         'run-if': { [name: string]: string };
         run: { [name: string]: string };
+        command: { [name: string]: string };
     };
     commands: { [command: string]: Command };
     hosts?: { host: string, roles: string[] }[];
@@ -62,9 +67,11 @@ export interface CommandLineArguments {
 }
 
 export interface Plugins {
+    context: { [key: string]: ContextPlugin };
     require: { [key: string]: RequirePlugin };
     'run-if': { [key: string]: RunIfPlugin };
     run: { [key: string]: RunPlugin };
+    command: { [key: string]: CommandPlugin };
 }
 
 export interface ScriptRef {
@@ -106,10 +113,8 @@ export interface BaseContext {
     outputFileFD?: number;
     dryRun: boolean;
     includes: string[];
+    command: Command;
     pluginData: { [name: string]: any };
-}
-
-export interface RequirePluginContext extends BaseContext {
     log: (action: LogAction, data?) => void;
 }
 
@@ -131,7 +136,7 @@ export interface ExecutionContext extends BaseContext {
 
     exec: (script: Script, command: string) => EventEmitter;
     copyFile: (script: Script, file: FileRef) => Promise<void>;
-    log: (script: Script, action: LogAction, data?) => void;
+    logWithScript: (script: Script, action: LogAction, data?) => void;
 }
 
 export interface Plugin {
@@ -141,13 +146,23 @@ export interface Plugin {
     scriptComplete?(ctx: ExecutionContext, script: Script, args: string[], code: number): Promise<void>;
 }
 
+export interface CommandPlugin extends Plugin {
+    run?(ctx: BaseContext, args: string[]): Promise<void>;
+    preExecution?(ctx: BaseContext): Promise<void>;
+}
+
+export interface ContextPlugin extends Plugin {
+    applyToBaseContext?(ctx: BaseContext): Promise<void>;
+    applyToExecutionContext?(ctx: ExecutionContext): Promise<void>;
+}
+
 export interface ExpandRequiresResults {
     scripts?: FileRef[];
     files?: FileRef[];
 }
 
 export interface RequirePlugin extends Plugin {
-    expandRequires(ctx: RequirePluginContext, args: string[]): Promise<ExpandRequiresResults>;
+    expandRequires(ctx: BaseContext, args: string[]): Promise<ExpandRequiresResults>;
 }
 
 export interface RunIfPlugin extends Plugin {

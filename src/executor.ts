@@ -1,4 +1,4 @@
-import {BaseContext, ExecutionContext, FileRef, RunPlugin, Script} from "../types";
+import {BaseContext, CommandPlugin, ContextPlugin, ExecutionContext, FileRef, RunPlugin, Script} from "../types";
 import * as _ from "lodash";
 import * as path from "path";
 import {calculateExecutionOrder} from "./execution-order";
@@ -9,6 +9,15 @@ import {copyFile, executeCommand, getSshClient} from "./utils/remote";
 import {performSubstitutions} from "./config";
 
 export async function execute(ctx: BaseContext): Promise<void> {
+    const cmd = <CommandPlugin>ctx.command.commandPlugin;
+    if (cmd.preExecution) {
+        await cmd.preExecution(ctx);
+    }
+
+    if (ctx.scripts.length == 0) {
+        return;
+    }
+
     const executionContexts = await getExecutionContexts(ctx);
     const colorFnQueue: any = [
         chalk.green,
@@ -56,12 +65,13 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
                         ...ctx.config.defaults.ssh
                     },
                     options: {
+                        env: {},
                         ...ctx.config.defaults
                     },
                     roles: [roleName],
                     exec: null,
                     copyFile: null,
-                    log: null,
+                    logWithScript: null,
                     logColorHostFn: null
                 };
             }
@@ -71,11 +81,21 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
     for (let ctx of executionContexts) {
         ctx.local = isLocal(ctx);
         ctx.exec = executeCommand.bind(null, ctx);
-        ctx.log = log.bind(null, ctx);
+        ctx.logWithScript = log.bind(null, ctx);
         ctx.copyFile = copyFile.bind(null, ctx);
-        performSubstitutions(ctx, ctx);
+        await applyContextPlugins(ctx.plugins.context, ctx);
+        await performSubstitutions(ctx, ctx);
     }
     return executionContexts;
+}
+
+async function applyContextPlugins(contextPlugins: { [name: string]: ContextPlugin }, ctx: ExecutionContext) {
+    for (let contextPluginName in contextPlugins) {
+        const contextPlugin = contextPlugins[contextPluginName];
+        if (contextPlugin.applyToExecutionContext) {
+            await contextPlugin.applyToExecutionContext(ctx);
+        }
+    }
 }
 
 function syncFiles(ctx: ExecutionContext): Promise<void> {

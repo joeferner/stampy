@@ -2,7 +2,7 @@
 
 class MyRunIfPlugin {
     shouldExecute(ctx, script, args) {
-        ctx.log(script, 'STDOUT', `my-run-if ${args.join(' ')}`);
+        ctx.logWithScript(script, 'STDOUT', `my-run-if ${args.join(' ')}`);
         return Promise.resolve(true);
     }
 }

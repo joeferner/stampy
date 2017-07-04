@@ -7,10 +7,10 @@ export class ExprRunIfPlugin implements RunIfPlugin {
             const command = `test ${arg}`;
             ctx.exec(script, command)
                 .on('stdout', data => {
-                    ctx.log(script, 'STDOUT', data);
+                    ctx.logWithScript(script, 'STDOUT', data);
                 })
                 .on('stderr', data => {
-                    ctx.log(script, 'STDERR', data);
+                    ctx.logWithScript(script, 'STDERR', data);
                     reject(new Error('received message from stderr'));
                 })
                 .on('close', code => {
