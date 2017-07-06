@@ -22,28 +22,16 @@ import {DefaultCommandPlugin} from "./plugins/command/DefaultCommandPlugin";
 import {commandLineParse} from "./utils/command-line";
 
 export async function run(argv: string[]): Promise<void> {
-    const defaults: any = {
-        'dry-run': false,
-        group: [],
-        outputFormat: 'normal',
-        args: []
-    };
-
     argv = argv.slice(2);
-    const parsedArgs = commandLineParse([
+    const args = commandLineParse([
         {name: 'config', alias: 'c', type: String},
         {name: 'role', alias: 'r', multiple: true, type: String},
         {name: 'output', alias: 'o', type: String},
-        {name: 'group', alias: 'g', multiple: true, type: String},
-        {name: 'dry-run', type: Boolean},
-        {name: 'output-format', type: String}
+        {name: 'group', alias: 'g', multiple: true, type: String, defaultValue: []},
+        {name: 'dry-run', type: Boolean, defaultValue: false},
+        {name: 'output-format', type: String, defaultValue: 'normal'},
+        {name: 'args', defaultOption: true, multiple: true, defaultValue: []}
     ], {argv, partial: true});
-    const args = {
-        ...defaults,
-        ...parsedArgs
-    };
-    args.args = args._unknown;
-    delete args._unknown;
 
     let outputFileFD: number = null;
     if (args.output) {

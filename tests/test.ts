@@ -32,11 +32,9 @@ for (let f of dir) {
                     process.argv[0],
                     process.argv[1],
                     '--config', stampyConfig,
-                    '--outputFormat', 'json',
+                    '--output-format', 'json',
                     '--output', tempFileName
                 ];
-                console.log('**************************************************************************************');
-                console.log(`running ${args.join(' ')}`);
                 run(args)
                     .then(() => {
                         if (expected.error) {
@@ -50,14 +48,9 @@ for (let f of dir) {
                             .map(line => {
                                 return JSON.parse(line);
                             });
-                        console.log(`results for ${f}`);
-                        console.log(results.map(line => {
-                            if (line.action === 'COPY') {
-                                delete line['data'];
-                            }
-                            return JSON.stringify(line);
-                        }).join(',\n'));
-                        test.equals(results.length, expected.lines.length, `expected lines (${expected.lines.length}) did not match found lines (${results.length})`);
+
+                        let didOutputResults = false;
+                        myTestEquals(results.length, expected.lines.length, `expected lines (${expected.lines.length}) did not match found lines (${results.length})`);
                         for (let i = 0; i < results.length; i++) {
                             const foundLine = results[i];
                             const expectedLine = expected.lines[i];
@@ -67,7 +60,23 @@ for (let f of dir) {
                             if (foundLine.action === 'COPY') {
                                 delete foundLine['data'];
                             }
-                            test.equals(JSON.stringify(foundLine), JSON.stringify(expectedLine));
+                            myTestEquals(JSON.stringify(foundLine), JSON.stringify(expectedLine));
+                        }
+
+                        function myTestEquals(a, b, message) {
+                            if (a != b) {
+                                if (!didOutputResults) {
+                                    console.log(`results for ${f}`);
+                                    console.log(results.map(line => {
+                                        if (line.action === 'COPY') {
+                                            delete line['data'];
+                                        }
+                                        return JSON.stringify(line);
+                                    }).join(',\n'));
+                                    didOutputResults = true;
+                                }
+                            }
+                            test.equals(a, b, message);
                         }
 
                         cleanupCallback();
@@ -76,7 +85,6 @@ for (let f of dir) {
                     .catch(err => {
                         cleanupCallback();
                         if (expected.error) {
-                            console.log(err);
                             return test.done();
                         }
                         test.done(err);

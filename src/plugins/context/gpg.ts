@@ -18,6 +18,8 @@ class GpgCommandPlugin implements CommandPlugin {
     run(ctx: BaseContext, args: string[]): Promise<void> {
         const {command, argv} = GpgCommandPlugin.getCommand(args);
         switch (command) {
+            case 'create':
+                return this.create(ctx, argv);
             case 'set':
                 return this.set(ctx, argv);
             case 'keys':
@@ -25,33 +27,47 @@ class GpgCommandPlugin implements CommandPlugin {
             case 'remove':
                 return this.remove(ctx, argv);
             default:
-                console.error(`Invalid command "${args[0]}"`);
+                console.error(`Invalid command "${args[0] || ''}"`);
                 process.exit(-1);
                 break;
         }
         return Promise.resolve();
     }
 
-    private async set(ctx: BaseContext, args: string[]): Promise<void> {
-        const options = commandLineParse([
-            {name: 'key', alias: 'k', type: String},
-            {name: 'value', alias: 'v'}
-        ], {argv: args});
-        if (!options.key) {
-            console.error('key is required');
+    private async create(ctx: BaseContext, args: string[]): Promise<void> {
+        const options = commandLineParse([], {argv: args});
+        const exists = await fs.pathExists(getFileName(ctx));
+        if (exists) {
+            console.error(`${getFileName(ctx)} already exists`);
             process.exit(-1);
             return;
         }
-        if (!options.value) {
-            console.error('value is required');
+        await writeEncryptedObject(ctx, {});
+        console.log(`${getFileName(ctx)} created`);
+    }
+
+    private async set(ctx: BaseContext, args: string[]): Promise<void> {
+        const options = commandLineParse([
+            {name: 'value', alias: 'v', type: String, multiple: true}
+        ], {argv: args});
+        if (!options.value || options.value.length === 0) {
+            console.error('one or more values are required');
             process.exit(-1);
             return;
         }
 
         const obj = await getDecryptedObject(ctx);
-        obj[options.key] = options.value;
+        for (const value of options.value) {
+            const m = value.match(/(.*?)=(.*)/);
+            if (!m) {
+                console.error('value must be in the format <key>=<value>');
+                process.exit(-1);
+                return;
+            }
+            obj[m[1]] = m[2];
+        }
         await writeEncryptedObject(ctx, obj);
-        console.log('key/value added');
+        console.log('key/values added');
     }
 
     private async remove(ctx: BaseContext, args: string[]): Promise<void> {
@@ -86,7 +102,7 @@ class GpgCommandPlugin implements CommandPlugin {
 
     private static getCommand(args: string[]) {
         try {
-            const {command, argv} = commandLineCommands(['set', 'remove', 'keys'], args);
+            const {command, argv} = commandLineCommands(['create', 'set', 'remove', 'keys'], args);
             return {command, argv};
         } catch (err) {
             return {command: null, argv: null};
@@ -109,15 +125,16 @@ export class GpgContextPlugin implements ContextPlugin {
         return Promise.resolve();
     }
 
-    applyToExecutionContext(ctx: ExecutionContext): Promise<void> {
-        (<any>ctx).gpg = getValue.bind(this, ctx);
-        return Promise.resolve();
+    async applyToExecutionContext(ctx: ExecutionContext): Promise<void> {
+        if (!(<any>ctx.options).gpg) {
+            return;
+        }
+        const obj = await getDecryptedObject(ctx);
+        (<any>ctx).gpg = (key: string) => {
+            return obj[key];
+        };
+        return;
     }
-}
-
-async function getValue(ctx: ExecutionContext, key: string): Promise<string> {
-    const obj = await getDecryptedObject(ctx);
-    return obj[key];
 }
 
 async function getDecryptedObject(ctx: BaseContext): Promise<any> {
@@ -155,12 +172,17 @@ async function writeEncryptedObject(ctx: BaseContext, obj: any): Promise<void> {
         });
 }
 
+let lastPassword = null;
 function getPassword(ctx: BaseContext): Promise<string> {
     const gpgOptions = getGpgOptions(ctx);
     if ('password' in gpgOptions) {
         return Promise.resolve(gpgOptions.password);
     }
-    return passwordPrompt("GPG password: ", {method: 'hide'});
+    if (lastPassword) {
+        return lastPassword;
+    }
+    lastPassword = passwordPrompt("GPG password: ", {method: 'hide'});
+    return lastPassword;
 }
 
 function getFileName(ctx: BaseContext) {

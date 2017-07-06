@@ -2,6 +2,7 @@ import * as commandLineArgs from "command-line-args";
 
 export interface CommandLineOption {
     name: string,
+    alias?: string,
     key?: string,
     type?: (value: any) => any,
     multiple?: boolean,

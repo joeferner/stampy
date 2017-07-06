@@ -99,6 +99,8 @@ function getFullCommand(ctx: ExecutionContext, script: Script, command: string) 
     result += `export -f stampy_skip\n`;
     result += `function stampy_reboot { echo 'STAMPY: {"action": "REBOOT", "timeout": '\\\${1:-60}'}'; }\n`;
     result += `export -f stampy_reboot\n`;
+    result += 'function is_in_role { local role=\\$1; for v in \\${STAMPY_ROLES}; do if [[ "\\${v}" == "\\${role}" ]]; then return 0; fi; done; return 1; }\n';
+    result += `export -f is_in_role\n`;
     result += `${command}\n`;
     result += 'STAMPY_BASH_EOF';
     if (ctx.options.sudo) {

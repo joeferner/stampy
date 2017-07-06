@@ -15,7 +15,7 @@ export class EjsRunPlugin implements RunPlugin {
         const dest = await EjsRunPlugin.getDestFileName(ctx, script, args, src);
         const template = await EjsRunPlugin.compileTemplate(ctx, src);
         const results = EjsRunPlugin.executeTemplate(ctx, template, src);
-        await fs.writeFile(dest.fullPath, results, 'utf8');
+        await fs.writeFile(dest.fullPath, results, {encoding: 'utf8'});
         return {
             files: [dest]
         };

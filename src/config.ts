@@ -4,6 +4,7 @@ import {BaseContext, Config, Host} from "../types";
 import * as path from "path";
 import * as _ from "lodash";
 import {replaceAsync} from "./utils/string";
+import * as NestedError from "nested-error-stacks";
 
 const DEFAULT_CONFIG = './stampy.yaml';
 
@@ -77,9 +78,11 @@ export async function performSubstitutions(ctx: BaseContext, obj: any): Promise<
                     const f = new Function('ctx', `return ${variable}`);
                     return f(ctx);
                 } catch (err) {
-                    return substr;
-                    // TODO should we throw this error and fix ssh plugins?
-                    // throw new NestedError(`Failed while expanding substitution "${substr}"`, err);
+                    // TODO handle other variables?
+                    if (variable === 'SRC' || variable === 'DEST') {
+                        return substr;
+                    }
+                    throw new NestedError(`Failed while expanding substitution "${substr}"`, err);
                 }
             });
         } else {

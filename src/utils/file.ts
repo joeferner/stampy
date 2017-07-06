@@ -41,6 +41,7 @@ export function md5RemoteFile(ctx: ExecutionContext, script: Script, fileName: s
                     return resolve(parseMd5sumOutput(data));
                 });
                 process.on('stderr', data => {
+                    ctx.logWithScript(script, 'STDERR', data)
                     reject(new Error(`Could not get md5 of remote file "${fileName}": ${data}`));
                 });
                 process.on('error', err => {

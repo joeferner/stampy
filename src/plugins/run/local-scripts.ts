@@ -33,6 +33,11 @@ export class LocalScriptsRunPlugin implements RunPlugin {
             let cmd = 'bash -l << STAMPY_BASH_EOF\n';
             cmd += `function stampy_cp { echo 'STAMPY: {"action": "CP", "src": "'\\$1'", "dest": "'\\$2'"}'; }\n`;
             cmd += `export -f stampy_cp\n`;
+            cmd += `export STAMPY_BASE_DIR=${ctx.baseDir}\n`;
+            for (let name in ctx.options.env) {
+                const value = ctx.options.env[name];
+                cmd += `export ${name}=${value}\n`;
+            }
             cmd += `${file.fullPath} ${args.join(' ')}\n`;
             cmd += `STAMPY_BASH_EOF`;
             const pendingPromises = [];

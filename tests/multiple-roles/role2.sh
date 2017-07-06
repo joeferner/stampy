@@ -3,4 +3,3 @@
 # require script ./role2-dep.sh
 
 echo "role2"
-echo "ROLES: ${ROLES}"
