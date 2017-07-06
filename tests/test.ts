@@ -63,7 +63,7 @@ for (let f of dir) {
                             myTestEquals(JSON.stringify(foundLine), JSON.stringify(expectedLine));
                         }
 
-                        function myTestEquals(a, b, message) {
+                        function myTestEquals(a, b, message?: string) {
                             if (a != b) {
                                 if (!didOutputResults) {
                                     console.log(`results for ${f}`);
