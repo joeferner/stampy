@@ -6,16 +6,6 @@ import * as _ from "lodash";
 import {replaceAsync} from "./utils/string";
 import * as NestedError from "nested-error-stacks";
 
-const DEFAULT_CONFIG = './stampy.yaml';
-
-export async function getConfig(config: string): Promise<string> {
-    if (config) {
-        return config;
-    } else if (!config) {
-        return DEFAULT_CONFIG;
-    }
-}
-
 export async function load(file: string, groups: string[]): Promise<Config> {
     const exists = await fs.pathExists(file);
     if (!exists) {

@@ -1,5 +1,4 @@
 import * as Config from "./config";
-import {getConfig} from "./config";
 import {BaseContext, ContextPlugin, Plugin, PLUGIN_TYPES, Plugins} from "../types";
 import {ScriptsRequirePlugin} from "./plugins/require/scripts";
 import {LocalScriptsRunPlugin} from "./plugins/run/local-scripts";
@@ -17,31 +16,46 @@ import {OnceRunIfPlugin} from "./plugins/runIf/once";
 import {ExternalFileRequirePlugin} from "./plugins/require/external-file";
 import {ExistsRunIfPlugin} from "./plugins/runIf/exists";
 import {CmdRunIfPlugin} from "./plugins/runIf/cmd";
-import {GpgContextPlugin} from "./plugins/context/gpg";
+import {GpgContextPlugin} from "./plugins/context/GpgContextPlugin";
 import {DefaultCommandPlugin} from "./plugins/command/DefaultCommandPlugin";
 import {commandLineParse} from "./utils/command-line";
 import {YumRunPlugin} from "./plugins/run/YumRunPlugin";
 import {CommandCommandPlugin} from "./plugins/command/CommandCommandPlugin";
+import {GpgCommandPlugin} from "./plugins/command/GpgCommandPlugin";
+import * as commandLineUsage from "command-line-usage";
+
+const DEFAULT_CONFIG = './stampy.yaml';
+
+const COMMAND_LINE_OPTIONS = [
+    {name: 'help', alias: 'h', type: Boolean, description: 'Help'},
+    {
+        name: 'config',
+        alias: 'c',
+        type: String,
+        typeLabel: '[underline]{file}',
+        description: `config file (default: ${DEFAULT_CONFIG})`,
+        defaultValue: DEFAULT_CONFIG
+    },
+    {name: 'role', alias: 'r', multiple: true, type: String},
+    {name: 'host', multiple: true, type: String},
+    {name: 'output', alias: 'o', type: String},
+    {name: 'group', alias: 'g', multiple: true, type: String, defaultValue: []},
+    {name: 'dry-run', type: Boolean, defaultValue: false},
+    {name: 'output-format', type: String, defaultValue: 'normal'}
+];
 
 export async function run(argv: string[]): Promise<void> {
     argv = argv.slice(2);
-    const args = commandLineParse([
-        {name: 'config', alias: 'c', type: String},
-        {name: 'role', alias: 'r', multiple: true, type: String},
-        {name: 'host', multiple: true, type: String},
-        {name: 'output', alias: 'o', type: String},
-        {name: 'group', alias: 'g', multiple: true, type: String, defaultValue: []},
-        {name: 'dry-run', type: Boolean, defaultValue: false},
-        {name: 'output-format', type: String, defaultValue: 'normal'},
-        {name: 'args', defaultOption: true, multiple: true, defaultValue: []}
-    ], {argv, partial: true});
+    const args = commandLineParse(COMMAND_LINE_OPTIONS, {argv, partial: true});
+    args.args = args._unknown || [];
+    delete args._unknown;
 
     let outputFileFD: number = null;
     if (args.output) {
         outputFileFD = await openOutputFile(args.output);
     }
 
-    const config = await getConfig(args.config);
+    const config = args.config || DEFAULT_CONFIG;
     const configDir = path.resolve(path.dirname(config));
     const ctx: any = {
         baseDir: configDir,
@@ -62,8 +76,15 @@ export async function run(argv: string[]): Promise<void> {
     ctx.log = log.bind(null, ctx, null);
     ctx.config = await Config.load(ctx.configFile, ctx.groups);
     await addIncludesDirectory(ctx);
-    await validate(ctx);
     ctx.plugins = await loadPlugins(ctx);
+
+    if (args.help) {
+        printUsage(ctx);
+        process.exit(-1);
+        return;
+    }
+
+    await validate(ctx);
     await applyContextPlugins(ctx.plugins.context, ctx);
     ctx.commandLineArgs.commandArgs = await loadCommand(ctx);
 
@@ -76,30 +97,57 @@ export async function run(argv: string[]): Promise<void> {
     }
 }
 
+function printUsage(ctx: BaseContext) {
+    const commandListContent = [];
+    for (let commandName of Object.keys(ctx.plugins.command)) {
+        commandListContent.push({
+            name: commandName,
+            summary: ctx.plugins.command[commandName].description || ''
+        });
+    }
+
+    const usage = commandLineUsage([
+        {
+            header: 'Options',
+            optionList: COMMAND_LINE_OPTIONS
+        },
+        {
+            header: 'Commands',
+            content: commandListContent
+        }
+    ]);
+    console.error(usage);
+}
+
 async function addIncludesDirectory(ctx: BaseContext): Promise<void> {
     const includesPath = path.join(ctx.baseDir, 'includes');
     let includes = ctx.config.includes;
     if (!includes) {
-        if (await fs.pathExists(includesPath)) {
+        if (await fs.pathExists(includesPath)
+        ) {
             includes = [path.join(includesPath, '/**')];
-        } else {
+        }
+        else {
             includes = [];
         }
     }
-    ctx.includes = _.flatten(await Promise.all<string[]>(includes.map(i => {
-        const globOptions = {
-            cwd: ctx.baseDir,
-            nodir: true
-        };
-        return new Promise((resolve, reject) => {
-            glob(i, globOptions, (err, files) => {
-                if (err) {
-                    return reject(err);
-                }
-                resolve(files.map(f => path.relative(ctx.baseDir, f)));
+    ctx.includes = _.flatten(await
+        Promise.all<string[]>(includes.map(i => {
+            const globOptions = {
+                cwd: ctx.baseDir,
+                nodir: true
+            };
+            return new Promise((resolve, reject) => {
+                glob(i, globOptions, (err, files) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve(files.map(f => path.relative(ctx.baseDir, f)));
+                });
             });
-        });
-    })));
+        }))
+    )
+    ;
 }
 
 async function openOutputFile(fileName: string): Promise<number> {
@@ -216,7 +264,8 @@ async function loadPlugins(ctx: BaseContext): Promise<Plugins> {
         },
         command: {
             'default': new DefaultCommandPlugin(),
-            cmd: new CommandCommandPlugin()
+            cmd: new CommandCommandPlugin(),
+            gpg: new GpgCommandPlugin()
         },
         lifecycle: {}
     };

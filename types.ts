@@ -160,6 +160,8 @@ export interface ExecutionContext extends BaseContext {
 }
 
 export interface Plugin {
+    description?: string;
+
     /**
      * Called after the script completed execution
      */
