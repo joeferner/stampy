@@ -380,3 +380,27 @@ function getSshCommand(host: string, sshConfig: SshConfig): string {
         return `${sshpass}ssh ${timeoutOpt}${privateKeyOpt}-q ${connection}`;
     }
 }
+
+export function reboot(ctx: ExecutionContext, script: Script, expr: any): Promise<void> {
+    ctx.logWithScript(script, 'STDOUT', `Rebooting and waiting for ${expr.timeout} seconds`);
+    return new Promise((resolve, reject) => {
+        const rebootProcess = executeCommand(ctx, script, ctx.options.rebootCommand);
+        rebootProcess.on('stdout', data => {
+            ctx.logWithScript(script, 'STDOUT', data);
+        });
+        rebootProcess.on('stderr', data => {
+            ctx.logWithScript(script, 'STDERR', data);
+            reject(new Error(`could not execute reboot command "${ctx.options.rebootCommand}"`));
+        });
+        rebootProcess.on('close', code => {
+            if (code === 255) {
+                setTimeout(async () => {
+                    ctx.sshClient = await getSshClient(ctx);
+                    return resolve();
+                }, expr.timeout * 1000);
+            } else {
+                reject(new Error(`could not execute reboot command "${ctx.options.rebootCommand}" (code: ${code})`));
+            }
+        });
+    });
+}

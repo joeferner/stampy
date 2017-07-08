@@ -65,7 +65,14 @@ export interface Config {
 
 export interface CommandLineArguments {
     config: string[];
+    role?: string[];
+    host?: string[];
+    output?: string;
+    group: string[];
+    'dry-run': boolean;
+    'output-format': string;
     args: string[];
+    commandArgs?: string[];
 }
 
 export interface Plugins {
@@ -161,7 +168,8 @@ export interface Plugin {
 
 export interface CommandPlugin extends Plugin {
     run?(ctx: BaseContext, args: string[]): Promise<void>;
-    preExecution?(ctx: BaseContext): Promise<void>;
+    preExecution?(ctx: BaseContext): Promise<boolean>;
+    execute?(ctx: ExecutionContext, args: string[]): Promise<void>;
 }
 
 export interface ContextPlugin extends Plugin {

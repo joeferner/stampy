@@ -21,6 +21,7 @@ import {GpgContextPlugin} from "./plugins/context/gpg";
 import {DefaultCommandPlugin} from "./plugins/command/DefaultCommandPlugin";
 import {commandLineParse} from "./utils/command-line";
 import {YumRunPlugin} from "./plugins/run/YumRunPlugin";
+import {CommandCommandPlugin} from "./plugins/command/CommandCommandPlugin";
 
 export async function run(argv: string[]): Promise<void> {
     argv = argv.slice(2);
@@ -64,11 +65,11 @@ export async function run(argv: string[]): Promise<void> {
     await validate(ctx);
     ctx.plugins = await loadPlugins(ctx);
     await applyContextPlugins(ctx.plugins.context, ctx);
-    const remainingArgs = await loadCommand(ctx);
+    ctx.commandLineArgs.commandArgs = await loadCommand(ctx);
 
     ctx.command.commandPlugin.run
-        ? await ctx.command.commandPlugin.run(ctx, remainingArgs)
-        : DefaultCommandPlugin.runStatic(ctx, remainingArgs);
+        ? await ctx.command.commandPlugin.run(ctx, ctx.commandLineArgs.commandArgs)
+        : DefaultCommandPlugin.runStatic(ctx, ctx.commandLineArgs.commandArgs);
 
     if (ctx.outputFileFD) {
         fs.closeSync(ctx.outputFileFD);
@@ -160,9 +161,18 @@ async function loadCommand(ctx: BaseContext): Promise<string[]> {
     if (ctx.command) {
         args = args.slice(1);
     } else {
-        ctx.command = {
-            scripts: []
-        };
+        if (ctx.plugins.command[args[0]]) {
+            ctx.command = {
+                scripts: [],
+                commandPlugin: ctx.plugins.command[args[0]]
+            };
+            args = args.slice(1);
+            return args;
+        } else {
+            ctx.command = {
+                scripts: []
+            };
+        }
     }
 
     if (!ctx.command.commandPlugin) {
@@ -205,7 +215,8 @@ async function loadPlugins(ctx: BaseContext): Promise<Plugins> {
             yum: new YumRunPlugin()
         },
         command: {
-            'default': new DefaultCommandPlugin()
+            'default': new DefaultCommandPlugin(),
+            cmd: new CommandCommandPlugin()
         },
         lifecycle: {}
     };
