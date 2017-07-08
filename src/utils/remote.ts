@@ -34,6 +34,24 @@ export async function copyFile(ctx: ExecutionContext, script: Script, file: File
     }
 }
 
+export function runCommand(ctx: ExecutionContext, script: Script, command: string): Promise<number> {
+    return new Promise<number>((resolve, reject) => {
+        const ee = executeCommand(ctx, script, command);
+        ee.on('stdout', data => {
+            ctx.logWithScript(script, 'STDOUT', data);
+        });
+        ee.on('stderr', data => {
+            ctx.logWithScript(script, 'STDERR', data);
+        });
+        ee.on('error', err => {
+            return reject(err);
+        });
+        ee.on('close', code => {
+            return resolve(code);
+        });
+    });
+}
+
 export function executeCommand(ctx: ExecutionContext, script: Script, command: string): EventEmitter {
     if (ctx.local) {
         return executeCommandLocal(ctx, script, command);
@@ -155,7 +173,7 @@ function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, re
                         return resolve();
                     }
                     return reject(new Error(`Could not scp file using "${scpCommand}" (code: ${code})`));
-                })
+                });
             })
             .catch(err => {
                 return reject(new NestedError(`Could not scp file using "${scpCommand}"`, err));

@@ -20,6 +20,7 @@ import {CmdRunIfPlugin} from "./plugins/runIf/cmd";
 import {GpgContextPlugin} from "./plugins/context/gpg";
 import {DefaultCommandPlugin} from "./plugins/command/DefaultCommandPlugin";
 import {commandLineParse} from "./utils/command-line";
+import {YumRunPlugin} from "./plugins/run/YumRunPlugin";
 
 export async function run(argv: string[]): Promise<void> {
     argv = argv.slice(2);
@@ -200,7 +201,8 @@ async function loadPlugins(ctx: BaseContext): Promise<Plugins> {
         run: {
             'local-script': new LocalScriptsRunPlugin(),
             'local-scripts': new LocalScriptsRunPlugin(),
-            ejs: new EjsRunPlugin()
+            ejs: new EjsRunPlugin(),
+            yum: new YumRunPlugin()
         },
         command: {
             'default': new DefaultCommandPlugin()

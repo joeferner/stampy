@@ -14,7 +14,7 @@ import {calculateExecutionOrder} from "./execution-order";
 import * as rjson from "relaxed-json";
 import * as chalk from "chalk";
 import {log} from "./log";
-import {copyFile, executeCommand, getSshClient} from "./utils/remote";
+import {copyFile, executeCommand, getSshClient, runCommand} from "./utils/remote";
 import {performSubstitutions} from "./config";
 
 export async function execute(ctx: BaseContext): Promise<void> {
@@ -110,6 +110,7 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
                     },
                     roles: [roleName],
                     exec: null,
+                    run: null,
                     copyFile: null,
                     logWithScript: null,
                     logColorHostFn: null
@@ -121,6 +122,7 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
     for (let ctx of executionContexts) {
         ctx.local = isLocal(ctx);
         ctx.exec = executeCommand.bind(null, ctx);
+        ctx.run = runCommand.bind(null, ctx);
         ctx.logWithScript = log.bind(null, ctx);
         ctx.copyFile = copyFile.bind(null, ctx);
         await

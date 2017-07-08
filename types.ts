@@ -147,6 +147,7 @@ export interface ExecutionContext extends BaseContext {
     options: HostOptions;
 
     exec: (script: Script, command: string) => EventEmitter;
+    run: (script: Script, command: string) => Promise<number>;
     copyFile: (script: Script, file: FileRef) => Promise<void>;
     logWithScript: (script: Script, action: LogAction, data?) => void;
 }

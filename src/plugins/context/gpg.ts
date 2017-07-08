@@ -27,11 +27,11 @@ class GpgCommandPlugin implements CommandPlugin {
             case 'remove':
                 return this.remove(ctx, argv);
             default:
-                console.error(`Invalid command "${args[0] || ''}"`);
+                const message = `Invalid gpg command "${args[0] || ''}"`;
+                console.error(message);
                 process.exit(-1);
-                break;
+                return Promise.reject(new Error(message));
         }
-        return Promise.resolve();
     }
 
     private async create(ctx: BaseContext, args: string[]): Promise<void> {
