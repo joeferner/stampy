@@ -26,6 +26,7 @@ export async function run(argv: string[]): Promise<void> {
     const args = commandLineParse([
         {name: 'config', alias: 'c', type: String},
         {name: 'role', alias: 'r', multiple: true, type: String},
+        {name: 'host', multiple: true, type: String},
         {name: 'output', alias: 'o', type: String},
         {name: 'group', alias: 'g', multiple: true, type: String, defaultValue: []},
         {name: 'dry-run', type: Boolean, defaultValue: false},
@@ -46,6 +47,7 @@ export async function run(argv: string[]): Promise<void> {
         configFile: config,
         commandLineArgs: args,
         rolesToRun: args.role,
+        hostsToRun: args.host,
         groups: args.group,
         outputFormat: args['output-format'],
         outputFileFD: outputFileFD,
@@ -111,6 +113,7 @@ async function openOutputFile(fileName: string): Promise<number> {
 
 async function validate(ctx: BaseContext): Promise<void> {
     validateRolesToRun(ctx, ctx.rolesToRun);
+    validateHostsToRun(ctx, ctx.hostsToRun);
 }
 
 function validateRolesToRun(ctx: BaseContext, rolesToRun: string[]) {
@@ -120,6 +123,24 @@ function validateRolesToRun(ctx: BaseContext, rolesToRun: string[]) {
     for (let roleToRun of rolesToRun) {
         if (!ctx.config.roles[roleToRun]) {
             throw new Error(`Could not find role ${roleToRun}`);
+        }
+    }
+}
+
+function validateHostsToRun(ctx: BaseContext, hostsToRun: string[]) {
+    if (!hostsToRun) {
+        return;
+    }
+    for (let hostToRun of hostsToRun) {
+        let found = false;
+        for (let roleName of Object.keys(ctx.config.roles)) {
+            const role = ctx.config.roles[roleName];
+            if (role.hosts.indexOf(hostToRun) >= 0) {
+                found = true;
+            }
+        }
+        if (!found) {
+            throw new Error(`Could not find host ${hostToRun} in any roles`);
         }
     }
 }
@@ -181,9 +202,10 @@ async function loadPlugins(ctx: BaseContext): Promise<Plugins> {
             'local-scripts': new LocalScriptsRunPlugin(),
             ejs: new EjsRunPlugin()
         },
-        'command': {
+        command: {
             'default': new DefaultCommandPlugin()
-        }
+        },
+        lifecycle: {}
     };
 
     _.merge(plugins, await loadNodeModulePlugins(ctx));
@@ -207,7 +229,8 @@ async function loadNodeModulePlugins(ctx: BaseContext): Promise<Plugins> {
         require: {},
         'run-if': {},
         run: {},
-        command: {}
+        command: {},
+        lifecycle: {}
     };
     const packageJsonFiles = await getPackageJsonFiles();
     for (let packageJsonFile of packageJsonFiles) {
@@ -247,7 +270,8 @@ async function loadConfigPlugins(ctx: BaseContext): Promise<Plugins> {
         require: {},
         'run-if': {},
         run: {},
-        command: {}
+        command: {},
+        lifecycle: {}
     };
     for (let group in ctx.config.plugins || {}) {
         for (let name in ctx.config.plugins[group]) {

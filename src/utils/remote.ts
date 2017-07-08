@@ -1,4 +1,4 @@
-import {ExecutionContext, FileRef, Script, SshClient, SshConfig} from "../../types";
+import {ExecutionContext, ExecutionContextState, FileRef, Script, SshClient, SshConfig} from "../../types";
 import {ChildProcess, exec} from "child_process";
 import * as path from "path";
 import {log} from "../log";
@@ -82,12 +82,16 @@ function executeCommandRemote(ctx: ExecutionContext, script: Script, command: st
 }
 
 function getFullCommand(ctx: ExecutionContext, script: Script, command: string) {
-    const scriptPath = path.dirname(path.join(ctx.options.workingPath, script.path.packagePath));
     let result = 'bash -l << STAMPY_BASH_EOF\n';
     result += 'set -eu\n';
-    result += `cd "${scriptPath}"\n`;
-    for (let include of ctx.includes) {
-        result += `source ${path.join(ctx.options.workingPath, include)}\n`;
+    if (script) {
+        const scriptPath = path.dirname(path.join(ctx.options.workingPath, script.path.packagePath));
+        result += `cd "${scriptPath}"\n`;
+    }
+    if (filesSynced(ctx)) {
+        for (let include of ctx.includes) {
+            result += `source ${path.join(ctx.options.workingPath, include)}\n`;
+        }
     }
     for (let name in ctx.options.env) {
         const value = ctx.options.env[name];
@@ -109,11 +113,31 @@ function getFullCommand(ctx: ExecutionContext, script: Script, command: string) 
     return result;
 }
 
+function filesSynced(ctx: ExecutionContext): boolean {
+    switch (ctx.state) {
+        case ExecutionContextState.INITIALIZING:
+        case ExecutionContextState.CONNECTED:
+        case ExecutionContextState.DISCONNECTED:
+            return false;
+        case ExecutionContextState.FILES_SYNCED:
+            return true;
+        default:
+            throw new Error(`unhandled context state: ${ctx.state}`);
+    }
+}
+
 function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, remoteFile: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const destDir = path.dirname(remoteFile);
         let scpCommand = getScpCommand(ctx.host, ctx.sshOptions, localFile, remoteFile);
-        ctx.sshClient.run(script, `mkdir -p "${destDir}"`)
+
+        // -m and -p don't work well together so we have to start from root and work our way up
+        let cmd = '';
+        for (let d of getDirectoryLineage(destDir)) {
+            cmd += `${ctx.options.sudo ? 'sudo ' : ''}mkdir -p -m 777 "${d}"\n`;
+        }
+
+        ctx.sshClient.run(script, cmd)
             .then(code => {
                 if (code !== 0) {
                     return reject(new Error(`Could not create directories on remote machine: ${destDir} (code: ${code})`));
@@ -137,6 +161,14 @@ function uploadFile(ctx: ExecutionContext, script: Script, localFile: string, re
                 return reject(new NestedError(`Could not scp file using "${scpCommand}"`, err));
             });
     });
+}
+
+function getDirectoryLineage(dir: string): string[] {
+    const parentDir = path.dirname(dir);
+    if (parentDir === '/') {
+        return [];
+    }
+    return [...getDirectoryLineage(parentDir), dir];
 }
 
 function getScpCommand(host: string, sshConfig: SshConfig, localFile: string, remoteFile: string): string {

@@ -7,7 +7,8 @@ export const PLUGIN_TYPES = [
     'run-if!',
     'skip-if',
     'skip-if!',
-    'run'
+    'run',
+    'lifecycle'
 ];
 
 export interface FileRef {
@@ -52,6 +53,7 @@ export interface Config {
         'run-if': { [name: string]: string };
         run: { [name: string]: string };
         command: { [name: string]: string };
+        lifecycle: { [name: string]: string };
     };
     commands: { [command: string]: Command };
     hosts?: { host: string, roles: string[] }[];
@@ -72,6 +74,7 @@ export interface Plugins {
     'run-if': { [key: string]: RunIfPlugin };
     run: { [key: string]: RunPlugin };
     command: { [key: string]: CommandPlugin };
+    lifecycle: { [key: string]: LifecyclePlugin };
 }
 
 export interface ScriptRef {
@@ -108,6 +111,7 @@ export interface BaseContext {
     plugins: Plugins;
     scripts: Script[];
     rolesToRun?: string[];
+    hostsToRun?: string[];
     groups: string[];
     outputFormat: OutputFormat;
     outputFileFD?: number;
@@ -124,7 +128,15 @@ export interface SshClient {
     run: (script: Script, cmd: string) => Promise<number>;
 }
 
+export enum ExecutionContextState {
+    INITIALIZING,
+    CONNECTED,
+    FILES_SYNCED,
+    DISCONNECTED
+}
+
 export interface ExecutionContext extends BaseContext {
+    state: ExecutionContextState;
     local: boolean;
     host?: string;
     sshOptions: SshConfig;
@@ -175,4 +187,10 @@ export interface RunResults {
 
 export interface RunPlugin extends Plugin {
     run?(ctx: ExecutionContext, script: Script, args: string[]): Promise<RunResults>;
+}
+
+export interface LifecyclePlugin extends Plugin {
+    afterConnect?(ctx: ExecutionContext): Promise<void>;
+    afterFilesSynced?(ctx: ExecutionContext): Promise<void>;
+    afterExecution?(ctx: ExecutionContext): Promise<void>;
 }

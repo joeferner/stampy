@@ -1,4 +1,13 @@
-import {BaseContext, CommandPlugin, ContextPlugin, ExecutionContext, FileRef, RunPlugin, Script} from "../types";
+import {
+    BaseContext,
+    CommandPlugin,
+    ContextPlugin,
+    ExecutionContext,
+    ExecutionContextState,
+    FileRef,
+    RunPlugin,
+    Script
+} from "../types";
 import * as _ from "lodash";
 import * as path from "path";
 import {calculateExecutionOrder} from "./execution-order";
@@ -33,17 +42,44 @@ export async function execute(ctx: BaseContext): Promise<void> {
             if (!ctx.local) {
                 ctx.sshClient = await getSshClient(ctx);
             }
+            ctx.state = ExecutionContextState.CONNECTED;
             ctx.scripts = await calculateExecutionOrder(ctx, ctx.scripts);
+            await executeLifecycleAfterConnect(ctx);
             await syncFiles(ctx);
+            ctx.state = ExecutionContextState.FILES_SYNCED;
+            await executeLifecycleAfterFilesSynced(ctx);
             await executeScripts(ctx);
+            await executeLifecycleAfterExecution(ctx);
             if (ctx.sshClient) {
                 await ctx.sshClient.end();
             }
+            ctx.state = ExecutionContextState.DISCONNECTED;
         } finally {
             colorFnQueue.push(ctx.logColorHostFn);
         }
     }
     log(ctx, null, 'DONE');
+}
+
+function executeLifecycleAfterConnect(ctx: ExecutionContext): Promise<void> {
+    return executeLifecycle(ctx, 'afterConnect');
+}
+
+function executeLifecycleAfterFilesSynced(ctx: ExecutionContext): Promise<void> {
+    return executeLifecycle(ctx, 'afterFilesSynced');
+}
+
+function executeLifecycleAfterExecution(ctx: ExecutionContext): Promise<void> {
+    return executeLifecycle(ctx, 'afterExecution');
+}
+
+async function executeLifecycle(ctx: ExecutionContext, fnName: string): Promise<void> {
+    for (let pluginName of Object.keys(ctx.plugins.lifecycle)) {
+        const plugin = ctx.plugins.lifecycle[pluginName];
+        if (plugin[fnName]) {
+            await plugin[fnName](ctx);
+        }
+    }
 }
 
 async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[]> {
@@ -54,11 +90,15 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
         }
         const roleInfo = ctx.config.roles[roleName];
         for (let host of roleInfo.hosts) {
+            if (!shouldHostRun(ctx, host)) {
+                continue;
+            }
             if (results[host]) {
                 results[host].roles.push(roleName);
             } else {
                 results[host] = {
                     ...ctx,
+                    state: ExecutionContextState.INITIALIZING,
                     host,
                     local: false,
                     sshOptions: {
@@ -83,8 +123,10 @@ async function getExecutionContexts(ctx: BaseContext): Promise<ExecutionContext[
         ctx.exec = executeCommand.bind(null, ctx);
         ctx.logWithScript = log.bind(null, ctx);
         ctx.copyFile = copyFile.bind(null, ctx);
-        await applyContextPlugins(ctx.plugins.context, ctx);
-        await performSubstitutions(ctx, ctx);
+        await
+            applyContextPlugins(ctx.plugins.context, ctx);
+        await
+            performSubstitutions(ctx, ctx);
     }
     return executionContexts;
 }
@@ -332,6 +374,10 @@ function isLocal(ctx: ExecutionContext): boolean {
     return ctx.host === 'localhost' || ctx.host === '127.0.0.1';
 }
 
-function shouldRoleRun(ctx: BaseContext, roleName: string) {
+function shouldRoleRun(ctx: BaseContext, roleName: string): boolean {
     return !ctx.rolesToRun || ctx.rolesToRun.indexOf(roleName) >= 0;
+}
+
+function shouldHostRun(ctx: BaseContext, host: string): boolean {
+    return !ctx.hostsToRun || ctx.hostsToRun.indexOf(host) >= 0;
 }
