@@ -84,7 +84,7 @@ function executeCommandRemote(ctx: ExecutionContext, script: Script, command: st
 function getFullCommand(ctx: ExecutionContext, script: Script, command: string) {
     let result = 'bash -l << STAMPY_BASH_EOF\n';
     result += 'set -eu\n';
-    if (script) {
+    if (script && filesSynced(ctx)) {
         const scriptPath = path.dirname(path.join(ctx.options.workingPath, script.path.packagePath));
         result += `cd "${scriptPath}"\n`;
     }
