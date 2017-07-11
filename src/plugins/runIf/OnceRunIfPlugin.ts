@@ -1,5 +1,5 @@
 import {ExecutionContext, Script} from "../../../types";
-import {ExprRunIfPlugin} from "./expr";
+import {ExprRunIfPlugin} from "./ExprRunIfPlugin";
 import * as path from "path";
 
 export class OnceRunIfPlugin extends ExprRunIfPlugin {

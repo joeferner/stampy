@@ -1,4 +1,4 @@
-import {ExprRunIfPlugin} from "./expr";
+import {ExprRunIfPlugin} from "./ExprRunIfPlugin";
 import {ExecutionContext, Script} from "../../../types";
 
 export class ExistsRunIfPlugin extends ExprRunIfPlugin {
